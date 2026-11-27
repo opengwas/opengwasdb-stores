@@ -1,4 +1,4 @@
-"""Add the post steps a published Store's recipe declares and its records lack, in place (#528, ADR 0043).
+"""Add the post steps a published Store's recipe declares and its records lack, in place (#528, ADR 0044).
 
 A Build Recipe that gains `post.rho` or `post.clumps` (or a standalone
 `post.top_hits`) after its Store was published declares Store contents the
@@ -19,7 +19,7 @@ for an addable step, a record planned otherwise than the recipe now plans it
 (a changed LD Store mapping). Its plan is those steps in plan order, the
 declared `overview` whenever anything is added (the engine's overview reports
 the Rho Matrix and the Clumps), then the phase's `validate` and its register.
-For a completed Hybrid the plan begins with `recount-top-hits` (ADR 0043,
+For a completed Hybrid the plan begins with `recount-top-hits` (ADR 0044,
 amended 26 Nov 2026; opengwasdb#509): never a trigger, never in `plan()`.
 A release whose completion is still to run is not this mode's: completion
 comes first, and the post steps it declares run in its completion phase (ADR
@@ -38,7 +38,7 @@ One call, under the release's run lock (`add_post_steps`):
    shares: copies `records/` to a snapshot, stages the published Store at
    `store.opengwasdb.partial` by `cp --reflink=always` (never a full copy),
    runs the steps and `validate` there (`run.execute_step`), refuses a failed
-   step, a validation error and, for a rewritten Store, any warning ADR 0042's
+   step, a validation error and, for a rewritten Store, any warning ADR 0043's
    deviation rule does not accept, then writes `publication.json` and finishes
    it: the old Store, its records and its Validation Record go under
    `replaced/<UTC>/`.
@@ -85,7 +85,7 @@ ADDABLE_STEPS: tuple[str, ...] = ("top-hits", "rho", "clump")
 #: `n_hits_*` in place and regenerates the overview. Never in `plan()`: a fresh
 #: or forced build's `complete-hybrid` recounts itself. This route plans it, as
 #: a companion of the overview, whenever it adds anything to a completed Hybrid
-#: (ADR 0043, amendment 26 Nov 2026), and it runs before every other addition.
+#: (ADR 0044, amendment 26 Nov 2026), and it runs before every other addition.
 RECOUNT_STEP: str = "recount-top-hits"
 RECOUNT_COMMAND: str = "recount-top-hits"
 
@@ -283,7 +283,7 @@ def assess(b: bundle.Bundle, root: Path | str) -> Assessment | None:
         what = f"add {', '.join(s.name for s in missing)} to" if missing else "judge"
         raise PostAdditionRefused(
             f"Refusing to {what} {store_id}: its records no longer describe the Store its bundle plans "
-            f"(ADR 0037, ADR 0043):\n{listed}\nNothing was written. "
+            f"(ADR 0037, ADR 0044):\n{listed}\nNothing was written. "
             f"`pixi run release {store_id} --config force=1` rebuilds it from the bundle as it now stands."
         )
     return Assessment(
@@ -300,7 +300,7 @@ def assess(b: bundle.Bundle, root: Path | str) -> Assessment | None:
 
 
 def current(b: bundle.Bundle, root: Path | str) -> bool:
-    """Whether this mode published the release and its evidence is all current (ADR 0043).
+    """Whether this mode published the release and its evidence is all current (ADR 0044).
 
     The Snakefile then settles the edges between its post steps: a later
     step's record (an Indexed Variant Subset, an Observed-View Check) is older
@@ -339,7 +339,7 @@ def refuse_without_reflink(directory: Path) -> None:
         raise PostAdditionRefused(
             f"{directory} is on a {filesystem_type(directory)} filesystem, which `{' '.join(REFLINK_COPY)}` "
             f"cannot copy by reflink ({result.stderr.strip() or 'exit ' + str(result.returncode)}). The "
-            "published Store is staged only by reflink, never by a full copy (ADR 0043). Nothing was written."
+            "published Store is staged only by reflink, never by a full copy (ADR 0044). Nothing was written."
         )
 
 
@@ -390,7 +390,7 @@ def preflight(a: Assessment, *, registry_root: Path, lock: Path | None = None, p
         raise PostAdditionRefused(
             f"{store_id}'s published Store is format {format_version!r}; post steps are added in place "
             f"only to a {REQUIRED_FORMAT_VERSION} Store (Clumps exist only from 0.3.0, opengwasdb ADR "
-            "0106). Rewrite it to 0.3.0 and publish that first (`pixi run publish-rewrite`, ADR 0042). "
+            "0106). Rewrite it to 0.3.0 and publish that first (`pixi run publish-rewrite`, ADR 0043). "
             "Nothing was written."
         )
     validator = a.bundle.validation.get("validator") if isinstance(a.bundle.validation, Mapping) else None
@@ -469,7 +469,7 @@ def _observed(
 
 
 def _judge_rewrite_warnings(a: Assessment, validate_record: Mapping[str, Any]) -> None:
-    """A rewritten Store's warnings are held to ADR 0042's deviation rule (`publish_rewrite.judge_findings`).
+    """A rewritten Store's warnings are held to ADR 0043's deviation rule (`publish_rewrite.judge_findings`).
 
     A `--convert-legacy` release may warn under a deviation its conversion
     records, and a plain 0.2.3 rewrite under none. Any other warning is
@@ -496,7 +496,7 @@ def _judge_rewrite_warnings(a: Assessment, validate_record: Mapping[str, Any]) -
         shown = "\n  ".join(f"{f['rule']}: {f['message']}" for f in unrecorded[:10])
         raise PostAdditionRefused(
             f"the staged copy has {len(unrecorded)} warning(s) that are neither a deviation its "
-            f"rewrite records nor a warning its publication carried (ADR 0042):\n  {shown}"
+            f"rewrite records nor a warning its publication carried (ADR 0043):\n  {shown}"
         )
 
 

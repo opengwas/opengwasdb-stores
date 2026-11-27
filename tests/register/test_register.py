@@ -1797,7 +1797,7 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertFalse(paths.partial_store_path(b.store_id, root=artifact_root).exists())
 
     def build_without_a_step_the_recipe_now_plans(self) -> tuple[Bundle, Path, Path]:
-        """A build published before `post.clumps` joined the recipe (#532, ADR 0043).
+        """A build published before `post.clumps` joined the recipe (#532, ADR 0044).
 
         The recipe plans a build-phase `clump`; the published build never ran it,
         and its register verified only the steps it ran.

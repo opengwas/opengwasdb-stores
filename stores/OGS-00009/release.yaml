@@ -120,7 +120,7 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
 
   Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
   Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
-  OGS-00009` (ADR 0043, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  OGS-00009` (ADR 0044, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
   build-dense-rho` (838.8 s, 3,158,841 Analysis pairs), `opengwasdb clump --ld-store
   EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (113.1 s), the overview
   (3.0 s) and validate (920.5 s), from 15:08:50 to 15:40:17 UTC (31 min 28 s wall, peak RSS 20,725,888

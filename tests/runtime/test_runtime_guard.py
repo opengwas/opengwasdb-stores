@@ -620,7 +620,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         Indel ALIDs spell the reference first from 0.2.2 (opengwasdb#381), so
         completing an older parent would sort the panel's indels beside the
         Store's own. The remedy is a rebuild with this engine, or a
-        rewrite to 0.3.0 (ADR 0042); the message must not send the operator
+        rewrite to 0.3.0 (ADR 0043); the message must not send the operator
         to the old 0.2.0 converter.
         """
         for old in ("0.2.0", "0.2.1"):

@@ -115,7 +115,7 @@ notes: |-
 
   Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
   Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
-  OGS-00014` (ADR 0043, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  OGS-00014` (ADR 0044, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
   build-dense-rho` (546.4 s, 553,878 Analysis pairs), `opengwasdb clump --ld-store
   AMR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AMR/hgdp1kgp-v2-AMR-k10.store` (19.9 s), the overview
   (1.9 s) and validate (784.5 s), from 13:04:25 to 13:27:06 UTC (22 min 42 s wall, peak RSS 21,150,640

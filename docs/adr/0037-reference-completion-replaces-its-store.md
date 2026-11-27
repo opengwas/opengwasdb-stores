@@ -321,7 +321,7 @@ token.
 
 Two routes leave a 0.3.0 Observed-Only Store published under its id: a rebuild
 with this engine (OGS-00024 to -27, -32, -33), and a conversion published by
-`publish-rewrite` (ADR 0042; OGS-00016). Both may gain a `complete` block and
+`publish-rewrite` (ADR 0043; OGS-00016). Both may gain a `complete` block and
 complete under their own id, unforced, as this ADR already allows. The
 engine's completion reads a `0.3.0` source of either route, and
 `runtime.WRITABLE_FORMAT_VERSIONS` now includes `0.3.0`. A parent at `0.2.1` or
@@ -340,7 +340,7 @@ was built from. It adds one requirement: when the phase's register record
 lists the `rewrite-release` record or carries a `rewrite` block, that record
 must exist, be readable, be the `rewrite-release` step, and name this Store.
 A record that lists one without the other, or fails any of these, is refused.
-No new record is written; the check reads what ADR 0042's route already
+No new record is written; the check reads what ADR 0043's route already
 leaves. Decided on the owner's 25 Nov 2026 ruling on
 [#520](https://github.com/opengwas/opengwasdb-stores/issues/520#issuecomment-7163972259)
 (stream D: OGS-00016 is completed after conversion).

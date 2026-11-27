@@ -1,4 +1,4 @@
-"""Publish a rewritten Store Release through the registry (#533, ADR 0042).
+"""Publish a rewritten Store Release through the registry (#533, ADR 0043).
 
 `opengwasdb rewrite-release` derives a new format-0.3.0 Store Release from a
 published 0.2.x one and stages it beside it, `<id>/store.opengwasdb.0.3.0`,
@@ -544,7 +544,7 @@ def _observed(
     convert_legacy: bool,
     elapsed: list[float],
 ) -> dict[str, Any]:
-    """The rewritten release's `observed` block (ADR 0042).
+    """The rewritten release's `observed` block (ADR 0043).
 
     The rewrite answers every question its source does (the engine's digest
     proof refuses it otherwise), so what the build reported about the data is

@@ -1675,7 +1675,7 @@ def register_release(
     # verified; the release's elapsed total counts them (ADR 0037). A step the
     # current plan has there, that has no record and that the earlier register
     # did not list among its inputs, was added to the recipe after that phase
-    # published (ADR 0043, a `post.*` step): it is skipped, not required (#532).
+    # published (ADR 0044, a `post.*` step): it is skipped, not required (#532).
     earlier_records: dict[str, dict[str, Any]] = {}
     verified: dict[str, frozenset[str] | None] = {}
     for step in planned[: planned.index(planned_steps[0])]:

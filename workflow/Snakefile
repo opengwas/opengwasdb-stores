@@ -117,7 +117,7 @@ def record(store_id: str, step: str, root: Path | str | None = None) -> str:
 
 @functools.cache
 def additions_current(store_id: str, root: str) -> bool:
-    """Whether the release's in-place additions are published and its evidence current (ADR 0043)."""
+    """Whether the release's in-place additions are published and its evidence current (ADR 0044)."""
     return post_additions.current(get_bundle(store_id), root)
 
 
@@ -138,7 +138,7 @@ def settled(wildcards, record_p: str):
     An addition leaves a later post step's record (an Indexed Variant Subset,
     an Observed-View Check) older than the added record now before it, so by
     mtime Snakemake would reschedule it, and the published-Store guard would
-    refuse the run (ADR 0043). Only the edges between post steps, and into the
+    refuse the run (ADR 0044). Only the edges between post steps, and into the
     register, are settled: a build's or a manifest's inputs never, and nothing
     under a run that forces the release, so a newer manifest and `force=1`
     schedule what they always did.

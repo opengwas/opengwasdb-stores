@@ -21,7 +21,7 @@ copy of the published Store are corrupted and the planned `validate` argv, with 
 `--ld-store`, must then report a `clumps.reclump` error.
 
 `AddedInPlaceTest` is the one real-engine run of adding post steps to a published Store
-in place (#528, ADR 0043), sharing this module's LD Store: the same fixture, published
+in place (#528, ADR 0044), sharing this module's LD Store: the same fixture, published
 with `overview` and no Rho Matrix or Clumps, gains them through `pixi run release <id>`,
 and a second run then does nothing. `tests/post-additions` tests the mode without the engine.
 
@@ -201,7 +201,7 @@ class ClumpsPipelineTest(unittest.TestCase):
 
 
 class AddedInPlaceTest(unittest.TestCase):
-    """A Snakemake-built 0.3.0 Store gains Rho and Clumps in place, with the real engine (#528, ADR 0043).
+    """A Snakemake-built 0.3.0 Store gains Rho and Clumps in place, with the real engine (#528, ADR 0044).
 
     The Store is built and published by `pixi run release`, so Snakemake holds
     metadata for every record. The addition is interrupted part-way through

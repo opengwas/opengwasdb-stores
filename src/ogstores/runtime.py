@@ -67,7 +67,7 @@ REQUIRED_FORMAT_VERSION: str = "0.3.0"
 #: records `n_missing_se_out_of_range` (opengwas/opengwasdb#338, ADR 0068). A
 #: `0.3.0` source is one this engine's rebuild wrote, or one `opengwasdb
 #: rewrite-release` derived from a published release and `publish-rewrite`
-#: published (ADR 0042); the engine's completion reads both alike. It refuses a
+#: published (ADR 0043); the engine's completion reads both alike. It refuses a
 #: `0.2.1`, `0.2.0` or `0.1.0` source and says to rebuild it: completing one
 #: would spell the panel's indels sorted beside the Store's own deletions. The
 #: converter's `--convert-legacy` output is `0.3.0` and completes (#527); a

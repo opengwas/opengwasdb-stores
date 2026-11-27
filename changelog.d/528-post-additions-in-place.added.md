@@ -1,6 +1,6 @@
 - **`pixi run release <ID>` adds the post steps a published Store's recipe
   declares and its records lack (`rho`, `clump`, a standalone `top-hits`) in
-  place, with no rebuild and no `force` (#528, ADR 0043).** Its plan, which
+  place, with no rebuild and no `force` (#528, ADR 0044).** Its plan, which
   `pixi run release-dry <ID>` shows, is those steps, the declared `overview`
   regenerated after them, `validate` and the register. The published Store is
   staged by `cp --reflink=always`, never by a full copy: a filesystem that
@@ -11,7 +11,7 @@
   `has_clumps`, the engine's clump counts and a `post_additions` entry. It
   refuses, writing nothing, a 0.2.x Store, a bundle whose Store-writing steps
   or membership changed, and a killed run's leftovers. A rewritten Store is
-  held to ADR 0042's deviation rule again. Any failure before publication
+  held to ADR 0043's deviation rule again. Any failure before publication
   leaves the published Store, `records/` and `validation.yaml` as they were;
   an interruption says whether it was rolled back, the publication had begun
   (the next run finishes it, clearing Snakemake's metadata before the marker)

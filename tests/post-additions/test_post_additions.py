@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adding a published Store's missing post steps in place, with no rebuild (#528, ADR 0043).
+"""Adding a published Store's missing post steps in place, with no rebuild (#528, ADR 0044).
 
 These tests need no engine. `opengwasdb` is a stub install on PATH, pinned by
 patching the locked commit, that answers `info` and `validate --format json`
@@ -27,7 +27,7 @@ its LD Store mapping. They hold the mode to the issue and its review:
    run finishes it.
 4. A 0.2.x Store, a changed Store-writing step, a filesystem with no reflink and
    a symlinked Store are refused before anything is staged; a rewritten Store is
-   held to ADR 0042's deviation rule.
+   held to ADR 0043's deviation rule.
 
 Run from the repository root:
     pixi run -e dev test --suite post-additions
@@ -416,7 +416,7 @@ class TestAdding(PostAdditionsCase):
 
 
 class TestRecountTopHits(PostAdditionsCase):
-    """A completed Hybrid's additions begin with `recount-top-hits` (opengwasdb#509, #532, ADR 0043)."""
+    """A completed Hybrid's additions begin with `recount-top-hits` (opengwasdb#509, #532, ADR 0044)."""
 
     def completed_hybrid(self) -> None:
         """The fixture's Store stands for a completed Hybrid; `plan()` and the stub engine are the same."""
@@ -628,7 +628,7 @@ class TestRefusals(PostAdditionsCase):
 
 
 class TestRewrittenStores(PostAdditionsCase):
-    """A Store `publish_rewrite` published is held to ADR 0042's deviation rule when it is republished."""
+    """A Store `publish_rewrite` published is held to ADR 0043's deviation rule when it is republished."""
 
     def rewritten(self, *, convert_legacy: bool) -> None:
         rewrite_p = paths.record_path(STORE_ID, run.REWRITE_RELEASE_STEP, root=self.fx.root)

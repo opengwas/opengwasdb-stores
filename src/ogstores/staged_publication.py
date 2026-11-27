@@ -1,9 +1,9 @@
 """Publish a Store staged outside a Snakemake run, through the publication transaction (#533, #528).
 
 Two routes replace a published Store with one staged beside it, outside
-Snakemake: `ogstores.publish_rewrite` (a rewritten release, ADR 0042) and
+Snakemake: `ogstores.publish_rewrite` (a rewritten release, ADR 0043) and
 `ogstores.post_additions` (the published Store with missing post steps added,
-ADR 0043). This module owns what they share, so neither has its own:
+ADR 0044). This module owns what they share, so neither has its own:
 
 - the lifecycle (`publish`): copy `records/` to a forced run's snapshot, stage
   the candidate at `store.opengwasdb.partial`, run the mode's work, write

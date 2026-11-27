@@ -192,14 +192,14 @@ release from its bundle as it now stands.
 
 A recipe that gains `post.rho`, `post.clumps` (with its `post.ld_stores`
 mapping) or a standalone `post.top_hits` after its Store was published gains
-them in place, with no rebuild and no `--config force=1` (#528, ADR 0043):
+them in place, with no rebuild and no `--config force=1` (#528, ADR 0044):
 
 ```sh
 pixi run release-dry OGS-00015   # shows the plan; writes nothing
 pixi run release OGS-00015       # adds them, validates, publishes, registers
 ```
 
-For a completed Hybrid the plan begins with `recount-top-hits` (`completion-recount-top-hits` in a completion phase), which corrects the stale `n_hits_*` counts in place before the other additions (opengwasdb#509, ADR 0043's 26 Nov 2026 amendment). It runs only alongside additions, and a fresh or forced build never plans it.
+For a completed Hybrid the plan begins with `recount-top-hits` (`completion-recount-top-hits` in a completion phase), which corrects the stale `n_hits_*` counts in place before the other additions (opengwasdb#509, ADR 0044's 26 Nov 2026 amendment). It runs only alongside additions, and a fresh or forced build never plans it.
 
 The plan is the missing steps (`rho`, `clump`, or `completion-rho`,
 `completion-clump` for a Store completed under its own id), the declared
@@ -220,7 +220,7 @@ A `clump` record from another LD Store mapping, or a missing or failed
   shares the Store's blocks;
 - runs the steps and `validate` (with its `--ld-store` pairs) there. A Store
   `pixi run publish-rewrite` published is refused for a warning that is not a
-  deviation its conversion records (ADR 0042);
+  deviation its conversion records (ADR 0043);
 - publishes the copy through the usual transaction: the old Store, its records
   and its `validation.yaml` move to `replaced/<UTC>/`.
 

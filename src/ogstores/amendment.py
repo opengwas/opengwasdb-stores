@@ -187,7 +187,7 @@ def _is_rewrite_record_of(path: Path, store_id: str) -> bool:
 def _rewrite_changes(b: Bundle, phase: str, register: dict[str, Any], inputs: list[Path], root: Path) -> list[str]:
     """Whether a published phase's rewrite is the record `publish_rewrite` left, and names this Store (#527).
 
-    A release `publish_rewrite` published (ADR 0042) keeps the replaced
+    A release `publish_rewrite` published (ADR 0043) keeps the replaced
     release's `inputs` and adds `records/rewrite-release.json`, and writes a
     `rewrite` block naming it (`rewrite.record`). The Store-writing steps are
     still compared to the records of the release the conversion converted
@@ -404,7 +404,7 @@ def published_store_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
     The published phases' Store-writing steps and, for a rewritten release,
     its `rewrite-release` record (#527), and the build phase's membership,
     against their records. `bundle_changes` holds a bundle that
-    completes its own Store to it; adding post steps in place (ADR 0043) holds
+    completes its own Store to it; adding post steps in place (ADR 0044) holds
     every release to it. The scope is the caller's.
     """
     root = Path(artifact_root)

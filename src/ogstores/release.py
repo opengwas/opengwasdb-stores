@@ -35,7 +35,7 @@ A named, unforced release whose Store is published and whose recipe now
 declares post steps (`top-hits`, `rho`, `clump`) its records lack is not
 handed to Snakemake: they are added to the published Store in place, on a
 reflink copy, then validated, published and registered, with no rebuild and
-no `force` (`ogstores.post_additions`, ADR 0043). Every unforced release a
+no `force` (`ogstores.post_additions`, ADR 0044). Every unforced release a
 run touches, `all`'s too, is refused when the mode finds its records no longer
 describe the Store its bundle plans; a release the mode published with nothing
 missing is left to Snakemake, which settles the edges between its post steps.
@@ -534,7 +534,7 @@ def publication_outputs(marker: dict, store_id: str, root: Path) -> list[Path]:
 
     The register record it writes, whose incomplete mark a killed register job
     leaves (#195). For an addition of post steps in place, every record its
-    register lists too (ADR 0043): a step now follows an added one, so its
+    register lists too (ADR 0044): a step now follows an added one, so its
     recorded inputs changed, and Snakemake's `input` trigger would reschedule
     it.
     """
@@ -971,7 +971,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
 def post_additions_of(
     inv: Invocation, requested: Iterable[str], registry_root: Path, root: Path, force: bool
 ) -> list[tuple[str, post_additions.Assessment]]:
-    """The named, unforced releases whose post steps this run adds in place (ADR 0043).
+    """The named, unforced releases whose post steps this run adds in place (ADR 0044).
 
     Every unforced release the run requests is assessed, `all`'s too, so one
     the mode takes whose records no longer describe the Store its bundle plans
@@ -998,7 +998,7 @@ def _dry_run_addition(assessment: post_additions.Assessment, registry_root: Path
         return f"release-dry: the real run would refuse:\n{exc}"
     return "\n".join([
         f"release-dry: {assessment.store_id} is published; the real run adds its missing post steps in place, "
-        "on a reflink copy, with no rebuild (ADR 0043):",
+        "on a reflink copy, with no rebuild (ADR 0044):",
         *assessment.plan_lines(),
     ])
 
@@ -1014,7 +1014,7 @@ def _add_post_steps(
     """
     for store_id, assessment in additions:
         names = ", ".join(step.name for step in assessment.steps)
-        print(f"release: running {names} on a reflink copy of {store_id}'s published Store (ADR 0043)")
+        print(f"release: running {names} on a reflink copy of {store_id}'s published Store (ADR 0044)")
         try:
             record = post_additions.add_post_steps(
                 assessment,
@@ -1089,7 +1089,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
 
     # A published release whose recipe declares post steps its records lack
     # gains them in place, with no rebuild; Snakemake never sees it. One whose
-    # records no longer describe its bundle's Store is refused here (ADR 0043).
+    # records no longer describe its bundle's Store is refused here (ADR 0044).
     additions = post_additions_of(inv, requested, registry_root, root, force)
     if additions:
         interrupted = _add_post_steps(inv, additions, registry_root, root)

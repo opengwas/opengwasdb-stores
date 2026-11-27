@@ -1,5 +1,5 @@
 - **`pixi run publish-rewrite` publishes a Store Release that `opengwasdb
-  rewrite-release` staged beside the published one (#533, ADR 0042).** It
+  rewrite-release` staged beside the published one (#533, ADR 0043).** It
   records the operator's run of the rewrite as the `rewrite-release` step: the
   command, the engine's commit, start, end, exit, peak RSS and the log, from the
   run's `.cmd`, `.log`, `.time`, `.start`, `.end` and `.exit` files. It then runs

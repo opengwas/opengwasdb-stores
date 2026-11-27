@@ -87,7 +87,7 @@ exist and name this Store.
 
 **Only a 0.3.0 Store.** A published Store whose `opengwasdb info` format is not
 0.3.0 is refused before staging. Clumps exist only from 0.3.0 (opengwasdb ADR
-0106), and a 0.2.x Store is rewritten first (ADR 0042).
+0106), and a 0.2.x Store is rewritten first (ADR 0043).
 
 **Staged by reflink, never by copy, never through a symlink.** `run`'s
 no-follow guard runs first. A release directory, Store, staged Store or
@@ -105,7 +105,7 @@ stages its argv onto `.partial`, and its record is held to its planned argv
 step or a validation error is refused, naming its errors.
 
 A Store that `publish_rewrite` published carries a `rewrite` block. It is held
-to ADR 0042's deviation rule again (`publish_rewrite.judge_findings`): a
+to ADR 0043's deviation rule again (`publish_rewrite.judge_findings`): a
 `--convert-legacy` release may warn only under a deviation its conversion
 records, and a 0.2.3 rewrite may not warn. A native warning refuses it.
 

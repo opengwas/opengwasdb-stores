@@ -11,7 +11,7 @@ provides, and what upgrading it does **not** do.
 | Repository | `https://github.com/opengwas/opengwasdb` |
 | Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]` |
 | Commit, and the package version | `pixi.lock`, and nowhere else (#253). `pixi run env-check` prints both, beside the installed engine's |
-| Writers' Store `format_version` | `0.3.0` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`). `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, `0.2.2`, `0.2.3` and `0.3.0`: a `0.2.2` source completes to `0.2.3` or later. A `0.3.0` source is a rebuild with this engine, or a release `opengwasdb rewrite-release` derived and `publish-rewrite` published (ADR 0042); both complete under their own id (#527) |
+| Writers' Store `format_version` | `0.3.0` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`). `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, `0.2.2`, `0.2.3` and `0.3.0`: a `0.2.2` source completes to `0.2.3` or later. A `0.3.0` source is a rebuild with this engine, or a release `opengwasdb rewrite-release` derived and `publish-rewrite` published (ADR 0043); both complete under their own id (#527) |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |
 
@@ -79,7 +79,7 @@ history.
   Ragged release's `regions.tsv` (which the released engine 0.9.0 stamped `0.2.1`,
   opengwas/opengwasdb#430). The arrays and encodings are 0.2.0's. **Completion
   consumes `0.2.2`, `0.2.3` and `0.3.0`**: it refuses a `0.2.1`, `0.2.0` or
-  `0.1.0` source, and says to rebuild it or rewrite it to `0.3.0` (ADR 0042).
+  `0.1.0` source, and says to rebuild it or rewrite it to `0.3.0` (ADR 0043).
   The pre-0.3.0 converter wrote `0.2.0` and was no remedy.
 - **Format 0.2.3: an SE above 65,504 is not stored, and each Analysis counts the
   ones left out** (opengwas/opengwasdb#338, ADR 0068). `analyses.tsv` gains the
@@ -214,7 +214,7 @@ the way an insertion is spelt, so completing it would sort the panel's indels
 beside them. **The remedy is a rebuild of the parent with this engine, then the
 completion**: a fresh `pixi run release <parent>` writes a new `0.3.0` observed
 Store. The other remedy is `opengwasdb rewrite-release` to `0.3.0`, published
-with `pixi run publish-rewrite` (ADR 0042), which completion consumes, with one
+with `pixi run publish-rewrite` (ADR 0043), which completion consumes, with one
 limit: a conversion that records `variant_table.indel_order` leaves indels
 spelt sorted, and completing it can put a deletion under two ALIDs. The engine
 does not refuse it, so the amendment check does, before any write, naming the

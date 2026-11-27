@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publishing a rewritten Store Release through the registry (#533, ADR 0042).
+"""Publishing a rewritten Store Release through the registry (#533, ADR 0043).
 
 `ogstores.publish_rewrite` publishes a 0.3.0 Store Release that `opengwasdb
 rewrite-release` already wrote beside a published 0.2.x one. These tests hold it
