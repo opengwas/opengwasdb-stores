@@ -52,7 +52,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -607,6 +607,15 @@ def build_report(
             continue
 
         load_before = os.getloadavg()
+        # The bundle can list an Analysis the build excluded or dropped (OGS-00011: its
+        # first row is not in the Store), so the HM3 anchor is the first Analysis the
+        # Store's own table holds when the bundle's first is not there.
+        held = _analysis_ids(store_path / "analyses.tsv")
+        if held and store.analysis_id not in held:
+            entry["hm3_anchor_note"] = (
+                f"bundle's first Analysis {store.analysis_id} is not in the Store; anchored on {held[0]}"
+            )
+            store = replace(store, analysis_id=held[0])
         entry["hm3_extract"] = measure_hm3(core, store, store_path, reps=reps)
 
         if store.ragged:

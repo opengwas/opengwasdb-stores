@@ -36,8 +36,8 @@ A report recorded at load, not on a quiet host (#532): the shapes harness waits 
 days, so `--max-start-load 0` (passed through to the harness) records at the current
 load, and each Store's `load_average` (1, 5 and 15 minutes, before and after) sits in the
 JSON and the report. `opengwasdb_532_dense_rho_benchmark_2026-11-26.{json,md}` holds the
-seven Dense Stores that gained Rho (OGS-00009, -12, -13, -14, -15, -16, -17), measured
-at the pinned engine e97f07b5 at a load average of 42 to 80:
+eight Stores that gained Rho (Dense OGS-00009, -12, -13, -14, -15, -16, -17, and Hybrid OGS-00011, measured in a later run and merged into the report), measured
+at engine e97f07b5 at a load average of 42 to 80:
 
 ```bash
 pixi run -e dev python tools/benchmarks/release-benchmark-report.py \

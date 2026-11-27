@@ -386,6 +386,47 @@ class TestBundleContract(unittest.TestCase):
         "OGS-00016": AT_0_23_0,
     }
 
+    def test_ogs_00011_record_is_the_in_place_recount_rho_and_clumps_at_the_lock(self) -> None:
+        """#532 recounted OGS-00011's top-hit counts and added Rho and Clumps in place at the locked engine."""
+        loaded = bundle.load("OGS-00011", registry_root=REPO_ROOT / "stores")
+        validation = loaded.validation
+        record_check()
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
+        observed = validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["has_rho"], observed["has_clumps"], observed["n_loci_5e8"]),
+            (3245, True, True, 327706),
+        )
+        record_check()
+        self.assertEqual(
+            validation["post_additions"][0]["steps"],
+            ["completion-recount-top-hits", "completion-rho", "completion-clump", "completion-overview"],
+        )
+
+    def test_ogs_00032_record_is_the_forced_rebuild_and_completion_at_the_lock(self) -> None:
+        """#532 rebuilt OGS-00032 without its ten mis-scaled Analyses and completed it, at the locked engine."""
+        loaded = bundle.load("OGS-00032", registry_root=REPO_ROOT / "stores")
+        validation = loaded.validation
+        record_check()
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
+        observed = validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["completion_state"], observed["has_rho"], observed["has_clumps"]),
+            (369, "reference_completed", True, True),
+        )
+        record_check()
+        self.assertEqual(observed["n_loci_5e8"], 11953)
+        with (REPO_ROOT / "stores" / "OGS-00032" / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
+            excluded = {
+                row["analysis_id"]
+                for row in csv.DictReader(handle, delimiter="\t")
+                if row["exclude_from_build"].strip().lower() == "true" and "mis_scaled_z" in row["inclusion_reason"]
+            }
+        record_check()
+        self.assertEqual(len(excluded), 10)
+
     def test_ogs_00033_record_is_the_forced_rebuild_and_completion_at_the_lock(self) -> None:
         """#532 rebuilt OGS-00033 without GCST90278111 and completed it, at the locked engine."""
         loaded = bundle.load("OGS-00033", registry_root=REPO_ROOT / "stores")
