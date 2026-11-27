@@ -5,30 +5,25 @@ the committed Release Bundles and the Artifact Root on the host below. Do not
 edit by hand; the same run writes `docs/artifact-root-check.json`. It is read-only:
 fixing a finding (rebuild, withdraw, finish a publication) is the operator's decision.
 
-- Checked at: 2026-11-24T22:00:08Z
+- Checked at: 2026-11-27T09:35:02Z
 - Host: `app-dc3-ogws-p0.services.bris.ac.uk`
 - Artifact Root: `/data/opengwasdb/stores`
-- Registry revision: `b30eb21c42055c75cd5cb96c345bac87d463a777` (clean)
-- Release Bundles: 24; release directories: 20
-- Result: fails, exit status 1 (categories 1 and 4 fail the check)
+- Registry revision: `b6806c08b3c2743cbc6fa798d837675b487e5e47` (with uncommitted changes)
+- Release Bundles: 24; release directories: 22
+- Result: passes, exit status 0 (categories 1 and 4 fail the check)
 
 | # | Category | Findings |
 |---:|:---|---:|
-| 1 | registered but missing | 2 |
+| 1 | registered but missing | 0 |
 | 2 | on disk but unregistered | 0 |
-| 3 | status disagreement | 2 |
-| 4 | broken by-label link | 2 |
-| 5 | stray state | 2 |
+| 3 | status disagreement | 3 |
+| 4 | broken by-label link | 0 |
+| 5 | stray state | 0 |
 
 ## Findings
 
 | # | Category | Store | Release Status | Finding |
 |---:|:---|:---|:---|:---|
-| 1 | registered but missing | `OGS-00022` | `validated` | Release Status `validated`, but it has no release directory |
-| 1 | registered but missing | `OGS-00023` | `validated` | Release Status `validated`, but it has no release directory |
 | 3 | status disagreement | `OGS-00008` | `candidate` | the Store is present while the Release Status is `candidate` |
-| 3 | status disagreement | `OGS-00011` | `accepted` | the Store is present while the Release Status is `accepted` |
-| 4 | broken by-label link | `OGS-00022` | - | label `eur-hybrid-pilot-10-completed`: its target OGS-00022 is missing |
-| 4 | broken by-label link | `OGS-00023` | - | label `eur-hybrid-quant-pilot-10-completed`: its target OGS-00023 is missing |
-| 5 | stray state | `OGS-00011` | `accepted` | store.opengwasdb.partial exists: a Store is staged |
-| 5 | stray state | `OGS-00011` | `accepted` | .store.opengwasdb.partial.tmp.2209388.fb7a8d459875 exists: a Store is staged |
+| 3 | status disagreement | `OGS-00032` | `candidate` | the Store is present while the Release Status is `candidate` |
+| 3 | status disagreement | `OGS-00033` | `candidate` | the Store is present while the Release Status is `candidate` |
