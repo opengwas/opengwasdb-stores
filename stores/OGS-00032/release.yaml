@@ -43,22 +43,27 @@ notes: 'The candidate pool is 852 Analyses across 139 publications. EBI publishe
   852 frozen inventory rows.
 
 
-  Evidence: frozen Source Inventory gwas-catalog-ssf-eas-hybrid-2026-11-05 (sha256 dda4540ec266f084992d576c03c4e8518099ea49c919aaa416a31d1996c8a399);
-  preflight report /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00032/preflight/gwas-catalog-ssf-eas-hybrid-2026-11-05.json;
-  resolution receipt /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00032/resolver/resolution_receipt.json
+  Evidence: frozen Source Inventory gwas-catalog-ssf-eas-hybrid-2026-11-05 (sha256
+  dda4540ec266f084992d576c03c4e8518099ea49c919aaa416a31d1996c8a399);
+  preflight report
+  /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00032/preflight/gwas-catalog-ssf-eas-hybrid-2026-11-05.json;
+  resolution receipt
+  /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00032/resolver/resolution_receipt.json
   (sha256 0c923cfe8a388f6ce114e367a448bcebeaf4a5728957c3e4a4b613f5a6559b14).
 
 
   Policy: full-reference AF ancestry assignment and source-AF-only quantitative phenotype-SD estimation
   (issue #152); case-control rows use log_or/binary_trait; non-target/unassigned ancestry, orientation
-  failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
+  failures, unusable source AF and ordinary resolution failures are controlled exclusions
+  (sidecars/exclusions.tsv).
 
 
   Store composition (#203): this shared Store admits only Analyses whose rows were MAF-filtered; an included
   Analysis with no applied MAF floor is excluded as not_maf_filtered.
 
 
-  Exclusions by reason: ancestry_not_eur=34, ancestry_unassigned=7, effect_placeholder_rows=99, no_build_eligible_rows=58,
+  Exclusions by reason: ancestry_not_eur=34, ancestry_unassigned=7, effect_placeholder_rows=99,
+  no_build_eligible_rows=58,
   not_maf_filtered=132
 
 
@@ -69,22 +74,48 @@ notes: 'The candidate pool is 852 Analyses across 139 publications. EBI publishe
   Review: 27 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
 
 
-  Review: 132 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
+  Review: 132 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as
+  not_maf_filtered
   (#203); see sidecars/exclusions.tsv
 
   Its hm3 declaration gains overflow-only: skip (2026-11-25), as OGS-00011''s did on the owner
   decision of 2026-10-23 and OGS-00004''s and OGS-00005''s on 2026-11-18 (opengwas/opengwasdb#271):
   HapMap3 variants that reach only the shared/overflow axis cannot be indexed by the Dense Component, so
   the subset leaves them out and records how many. The forced release of 2026-11-25 (#524) built the
-  Hybrid Store, then its indexed-subset-hm3 Step refused for 111,003 such variants (exit 1 at 18:16:38 UTC after 1 h 25 min); the
+  Hybrid Store, then its indexed-subset-hm3 Step refused for 111,003 such variants (exit 1 at
+  18:16:38 UTC after 1 h 25 min); the
   build had succeeded. Those variants stay in the Store and are found by ALID and by position; only
   the hm3 subset omits them.
 
-  Built at format 0.3.0 (#520, #524; 2026-11-25). On the owner''s approval of 2026-11-25, this Store''s first publication is a forced release from source at opengwasdb 0.20.0 (c8ebe4ca), as a Hybrid Observed-Only Store. It ran as two invocations, because the hm3 subset refused the first time (above): the build ran from 2026-11-25 16:52:05 to 18:16:11 UTC (5,045.8 s) in the forced release that exited 1 at the subset Step, and its staged Store was kept; the second run, `pixi run -e workflow release OGS-00032` without force from worktree 524, resumed at indexed-subset-hm3 and ran 18:57:30 to 19:06:47 UTC (whole invocation 18:57:15 to 19:06:51 UTC, exit 0, 9 min 36 s wall, peak RSS 7.4 GB, load 69 to 116), exit 0. Step timings: build 5,045.8 s; indexed-subset-hm3 170.0 s; overview 1.4 s; validate 373.8 s; build_elapsed_s in the Validation Record, 5,591.1 s, sums the four Steps and counts the build once. It holds 17,889,288 shared variants (10,912,248 on the Dense panel, 6,977,040 off-panel) and 295,584,322 Ragged Overflow associations, 16.0 GB. Admission: 3,338,478,885 source rows examined, 2,674,036,991 admitted; dropped 537,234,387 below the MAF floor, 82,183,934 below the info threshold, 33,622,380 conflicting duplicates, 10,175,003 with no MAF, 1,208,964 unharmonised GWAS-SSF indels (indel_ssf_hm_columns, ADR 0072/0079), 16,423 collapsed duplicates and 803 indels by hm_code. hm3 subset: requested 1,206,903, resolved 1,064,383, absent 31,517, overflow-only skipped 111,003. No rsID conflicts (policy refuse, 0 keys). validate reports no errors and one warning (the Analyses were resolved with opengwasdb 0.3.3), status passed_with_warnings; `audit-store reconcile` exits 0 with no errors. Nothing was replaced: there was no earlier Store to archive. The Release Status was accepted when `register` finished and is moved to built, then validated, by hand on 2026-11-25, the owner''s ruling in the #520 orchestration (the lifecycle graph passes through built).
+  2026-11-25: built at format 0.3.0 (#524, epic #520). On the owner''s approval of 2026-11-25, this
+  Store''s first publication is a forced release from source at opengwasdb 0.20.0 (c8ebe4ca), as a
+  Hybrid Observed-Only Store. It ran as two invocations, because the hm3 subset refused the first
+  time (above): the build ran from 2026-11-25 16:52:05 to 18:16:11 UTC (5,045.8 s) in the forced
+  release that exited 1 at the subset Step, and its staged Store was kept; the second run, `pixi run
+  -e workflow release OGS-00032` without force, resumed at indexed-subset-hm3 and ran 18:57:30 to
+  19:06:47 UTC (whole invocation 18:57:15 to 19:06:51 UTC, exit 0, 9 min 36 s wall, peak RSS 7.4 GB,
+  load 69 to 116), exit 0. Step timings: build 5,045.8 s; indexed-subset-hm3 170.0 s; overview 1.4
+  s; validate 373.8 s; build_elapsed_s in the Validation Record, 5,591.1 s, sums the four Steps and
+  counts the build once. It holds 17,889,288 shared variants (10,912,248 on the Dense panel,
+  6,977,040 off-panel) and 295,584,322 Ragged Overflow associations, 16.0 GB. Admission:
+  3,338,478,885 source rows examined, 2,674,036,991 admitted; dropped 537,234,387 below the MAF
+  floor, 82,183,934 below the info threshold, 33,622,380 conflicting duplicates, 10,175,003 with no
+  MAF, 1,208,964 unharmonised GWAS-SSF indels (indel_ssf_hm_columns, ADR 0072/0079), 16,423
+  collapsed duplicates and 803 indels by hm_code. hm3 subset: requested 1,206,903, resolved
+  1,064,383, absent 31,517, overflow-only skipped 111,003. No rsID conflicts (policy refuse, 0
+  keys). validate reports no errors and one warning (the Analyses were resolved with opengwasdb
+  0.3.3), status passed_with_warnings; `audit-store reconcile` exits 0 with no errors. Nothing was
+  replaced: there was no earlier Store to archive. The Release Status was accepted when `register`
+  finished and is moved to built, then validated, by hand on 2026-11-25, on the owner''s ruling
+  recorded on #520 (the lifecycle graph passes through built).
 
-  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00015 (EAS), the Dense Store on the same panel and ancestry; `n-workers` is OGS-00011''s, the completed Hybrid. It also adds `post.rho` and `post.clumps` with `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block,
+  `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00015
+  (EAS), the Dense Store on the same panel and ancestry; `n-workers` is OGS-00011''s, the completed
+  Hybrid. It also adds `post.rho` and `post.clumps` with `post.ld_stores` (EAS: the
+  `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
 
-  2026-11-26: ten Analyses excluded and the release to be rebuilt from source (#520, #532). The clump
+  2026-11-26: ten Analyses excluded and the release rebuilt from source (#532, epic #520). The clump
   diagnosis (reports/clumpdiag.md) found that ten Analyses of PMID 40222985 (Omae et al., adverse
   reactions after COVID-19 booster vaccination: GCST90454398, -400, -402, -405, -408, -410, -411,
   -413, -414 and -415) hold 98.6 % of the Store''s 5e-8 tier rows, each with 5.87 to 6.23 M of its
@@ -92,20 +123,20 @@ notes: 'The candidate pool is 852 Analyses across 139 publications. EBI publishe
   quantitative trait of the same study, has a median |z| of 0.68. Their sources are log_or Analyses
   whose harmonised beta column holds the odds ratio (about 1, with the CI bounds on the OR scale)
   while standard_error is on the log scale, so the stored z = beta / SE is mis-scaled; no real signal
-  is that large. The owner ruled on 26 Nov 2026 (AskUserQuestion, in the orchestrating session) to
+  is that large. The owner ruled on 2026-11-26 (#520 comment 7202276131, item 8) to
   exclude them and rebuild OGS-00032 from source with force, then complete it. Their rows now carry
   `exclude_from_build: true` and `inclusion_reason` (ADR 0025), the exclusions and quality-check
   sidecars name them under `mis_scaled_z`, and the bundle plans 369 Analyses where the published Store
   has 379. The amendment check refuses an unforced run (membership) and the forced run bypasses it, as
-  ADR 0037 provides. The published Store stays as it is until the forced release replaces it; the
-  replaced Store is archived under replaced/.
+  ADR 0037 provides. The forced release that followed replaced the published Store, which is
+  archived under replaced/ (paragraph below).
 
-  Rebuilt from source without ten defective Analyses, then completed, with Rho and Clumps (issues #520
-  and #532, 2026-11-27). The owner ruled on 26 Nov 2026 that the ten Analyses of PMID 40222985
+  2026-11-27: rebuilt from source without ten defective Analyses, then completed, with Rho and
+  Clumps (#532, epic #520). The owner ruled on 2026-11-26 that the ten Analyses of PMID 40222985
   (GCST90454398, -400, -402, -405, -408, -410, -411, -413, -414, -415; see the paragraph above) are
   excluded and that the Store is rebuilt from source with force, then completed. A forced `pixi run -e
-  workflow release OGS-00032 --config force=1` from a5a57939 (engine 0.26.0, 964ac1b2, with the
-  exclusion of ba34c027) ran from 21:08:22 UTC on 26 Nov to 00:51:26 UTC on 27 Nov (3 h 43 min 03 s
+  workflow release OGS-00032 --config force=1` from a5a57939 (engine 0.26.0 (964ac1b2), with the
+  exclusion of ba34c027) ran from 21:08:22 UTC on 2026-11-26 to 00:51:26 UTC on 2026-11-27 (3 h 43 min 03 s
   wall, peak RSS 45,663,560 kB; 1-minute load average 80 at the start and 46 at the end, 81 on
   average, 39 to 127). It built the Observed-Only Store (build 4,696.1 s, rho 222.2 s, clump 34.9 s,
   indexed-subset-hm3 138.4 s, overview 0.9 s, validate 268.0 s) and published it, then completed it

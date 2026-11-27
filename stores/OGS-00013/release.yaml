@@ -15,38 +15,146 @@ description: 'MVP PMID 39024449 AFR observed input bundle (mvp-phs002453-afr): t
   input manifest accepted for owner-authorized dev construction. No Store has been built; human scientific
   acceptance is pending.'
 notes: |-
-  Ancestry bucket AFR; 1368 intended Analyses. candidate_store_key dense__pmid-39024449__African. The exact 1368-Analysis AFR membership is accepted and frozen as the input manifest for owner-authorized dev construction. Release Status is 'accepted' because #247 is the registry's fixed-input acceptance gate for a buildable bundle; it is not scientific release acceptance, publication approval or mirror promotion, and no Store has been built or validated yet.
+  Ancestry bucket AFR; 1368 intended Analyses. candidate_store_key dense__pmid-39024449__African.
+  The exact 1368-Analysis AFR membership is accepted and frozen as the input manifest for
+  owner-authorized dev construction. Release Status is 'accepted' because #247 is the registry's
+  fixed-input acceptance gate for a buildable bundle; it is not scientific release acceptance,
+  publication approval or mirror promotion, and no Store has been built or validated yet.
 
-  Owner build authority. Owner approved the MVP bundle integration and the dev builds (opengwas/opengwasdb-stores#221 comment 6156153525; #232 comment 6156153173). The parent's exact 1368-Analysis record binding and staged-artifact review qualify this input manifest for authorized dev construction. (emit config id_allocation_status: owner-authorized-2026-10-13, owner_ordering_approved: true).
+  Owner build authority. Owner approved the MVP bundle integration and the dev builds
+  (opengwas/opengwasdb-stores#221 comment 6156153525; #232 comment 6156153173). The parent's exact
+  1368-Analysis record binding and staged-artifact review qualify this input manifest for authorized
+  dev construction. (emit config id_allocation_status: owner-authorized-2026-10-13,
+  owner_ordering_approved: true).
 
-  Evidence boundary. The Analytical Metadata comes from an owner-authorized bounded metadata resolution whose source-evidence scope is a capped diagnostic (resolver receipt source_evidence_scope: capped_pilot_diagnostic); 1368/1368 AFR Analyses resolved with outcome ok, zero escaped pids and an unchanged metadata content hash. A capped run is a diagnostic, never a whole-source SCI qualification. Human scientific acceptance remains pending (validation.yaml:acceptance.human_acceptance) and is not claimed here. The corrected re-emission is metadata-only from the existing qualified records (no resolution rerun, no association-body read).
+  Evidence boundary. The Analytical Metadata comes from an owner-authorized bounded metadata
+  resolution whose source-evidence scope is a capped diagnostic (resolver receipt
+  source_evidence_scope: capped_pilot_diagnostic); 1368/1368 AFR Analyses resolved with outcome ok,
+  zero escaped pids and an unchanged metadata content hash. A capped run is a diagnostic, never a
+  whole-source SCI qualification. Human scientific acceptance remains pending
+  (validation.yaml:acceptance.human_acceptance) and is not claimed here. The corrected re-emission
+  is metadata-only from the existing qualified records (no resolution rerun, no association-body
+  read).
 
-  Source ancestry. Every row carries source_ancestry_label AFR -- the exact authority acquisition-mapping ancestry -- preserved as provenance and never used to re-derive the assigned ancestry.
+  Source ancestry. Every row carries source_ancestry_label AFR -- the exact authority
+  acquisition-mapping ancestry -- preserved as provenance and never used to re-derive the assigned
+  ancestry.
 
-  Canonical tuple. 1,368 x AFR/af_assigned (assigned_ancestry/ancestry_assignment_method). The corrected re-emission changed only the source_ancestry_label column and the META canonical method, leaving every sample size, effect scale, source ID, source path and evidence tag unchanged.
+  Canonical tuple. 1,368 x AFR/af_assigned (assigned_ancestry/ancestry_assignment_method). The
+  corrected re-emission changed only the source_ancestry_label column and the META canonical method,
+  leaving every sample size, effect scale, source ID, source path and evidence tag unchanged.
 
-  Provenance bindings. This bundle is bound to the actual source snapshot named in source_snapshot (metadata refresh root + content sha, mapping table sha, source-metadata fingerprint snapshot, candidate table sha, planned manifest sha, resolution table sha) and to the resolver/emission records (resolution receipt sha, records index sha, merge receipt sha, emission config sha, parent-code receipt sha) plus the authoritative emission code commit 26d834eba609c21c09be0137c4a0d00846a355c3 and its two script sha256s. No scientific release validation, publication approval or mirror promotion is claimed.
+  Provenance bindings. This bundle is bound to the actual source snapshot named in source_snapshot
+  (metadata refresh root + content sha, mapping table sha, source-metadata fingerprint snapshot,
+  candidate table sha, planned manifest sha, resolution table sha) and to the resolver/emission
+  records (resolution receipt sha, records index sha, merge receipt sha, emission config sha,
+  parent-code receipt sha) plus the authoritative emission code commit
+  26d834eba609c21c09be0137c4a0d00846a355c3 and its two script sha256s. No scientific release
+  validation, publication approval or mirror promotion is claimed.
 
-  Store built and published (issue #331, 2026-10-22). The #221 batch built this release's Store from stores cde84de with opengwasdb 0.3.0 at 4e92256, format 0.2.0, GRCh38. The build ran from 2026-10-18 20:41 to 2026-10-21 15:21 UTC (66.7 h). Top hits, the HM3 Indexed Variant Subset and the overview followed, then validate, from 2026-10-21 17:24 to 2026-10-21 23:14 UTC (5.8 h). register published the Store on 2026-10-21 23:14 UTC and wrote the Validation Record, copied into this bundle unchanged. It replaces the bundle's earlier Validation Record, which recorded the owner authorization and the pending human acceptance the paragraphs above cite; that record is in git at its acceptance.commit, 9c9b92b. The new record reads status passed, with no warnings or errors, and reports 1,368 Analyses, 36,964,976 variants and 50,568,087,168 associations. The Store is observed-only; reference completion is not part of this release. The Store was built in a dev Artifact Root, /data/opengwasdb/work/epic232/221/dev-builds-16w. On 2026-10-22, tools/relocate_store.py moved it to /data/opengwasdb/stores, renaming its directory and rewriting the 33 artifact paths in its six step records; stdout and stderr were left as written. The receipt beside the Store, relocations/20261022T151434.174330Z.json, holds each record's sha256 before and after. The Store is published at /data/opengwasdb/stores/OGS-00013/store.opengwasdb. This supersedes the statements above, and in the description, that no Store has been built or validated. The Validation Record's acceptance.warnings still say "No Store build or validation has run." That line is carried over from the accepted bundle's earlier record and predates the build. Human scientific acceptance remains pending.
+  Store built and published (issue #331, 2026-10-22). The #221 batch built this release's Store from
+  stores cde84de with opengwasdb 0.3.0 at 4e92256, format 0.2.0, GRCh38. The build ran from
+  2026-10-18 20:41 to 2026-10-21 15:21 UTC (66.7 h). Top hits, the HM3 Indexed Variant Subset and
+  the overview followed, then validate, from 2026-10-21 17:24 to 2026-10-21 23:14 UTC (5.8 h).
+  register published the Store on 2026-10-21 23:14 UTC and wrote the Validation Record, copied into
+  this bundle unchanged. It replaces the bundle's earlier Validation Record, which recorded the
+  owner authorization and the pending human acceptance the paragraphs above cite; that record is in
+  git at its acceptance.commit, 9c9b92b. The new record reads status passed, with no warnings or
+  errors, and reports 1,368 Analyses, 36,964,976 variants and 50,568,087,168 associations. The Store
+  is observed-only; reference completion is not part of this release. The Store was built in a dev
+  Artifact Root, /data/opengwasdb/work/epic232/221/dev-builds-16w. On 2026-10-22,
+  tools/relocate_store.py moved it to /data/opengwasdb/stores, renaming its directory and rewriting
+  the 33 artifact paths in its six step records; stdout and stderr were left as written. The receipt
+  beside the Store, relocations/20261022T151434.174330Z.json, holds each record's sha256 before and
+  after. The Store is published at /data/opengwasdb/stores/OGS-00013/store.opengwasdb. This
+  supersedes the statements above, and in the description, that no Store has been built or
+  validated. The Validation Record's acceptance.warnings still say "No Store build or validation has
+  run." That line is carried over from the accepted bundle's earlier record and predates the build.
+  Human scientific acceptance remains pending.
 
-  Pre-release SE codec re-encode (2026-10-25, #326): under the one-time exception authorized before the project's first release, only the `se` and `se_exception_index` Blosc `typesize` values and encoded chunk bytes changed. `records/se-reencode.json` reports full-array decoded equality across 813,433 chunks and 5,891,135,859 bytes saved; the post-run Store validation passed. This physical-representation-only exception sets no precedent after release.
+  Pre-release SE codec re-encode (2026-10-25, #326): under the one-time exception authorized before
+  the project's first release, only the `se` and `se_exception_index` Blosc `typesize` values and
+  encoded chunk bytes changed. `records/se-reencode.json` reports full-array decoded equality across
+  813,433 chunks and 5,891,135,859 bytes saved; the post-run Store validation passed. This
+  physical-representation-only exception sets no precedent after release.
 
   Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 50568087168.
   That is exactly 1368 x 36964976, n_analyses times n_variants, not a count. `register` multiplied
   the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by
-  #322); this Store was registered before that change reached this branch. The product counts matrix cells, and this Store is observed-only, so many of those cells are empty; it is not the number of observed associations.
+  #322); this Store was registered before that change reached this branch. The product counts matrix
+  cells, and this Store is observed-only, so many of those cells are empty; it is not the number of
+  observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
 
-  Completion under its own id (2026-11-02). The bundle now declares completion_state: reference_completed and, after its build phase, a complete block: complete-dense against the HGDP+1kGP AFR LD Reference Resource, hgdp1kgp-hg38-ld at /data/opengwasdb/reference/hgdp1kgp-hg38/panel, for ancestry AFR at 32 workers. The owner decided this on 2026-10-21. It is the one amendment ADR 0037's Decision 1 allows an accepted bundle, the amendment #305 clarifies: the build phase still plans exactly the argv that wrote the published Store, with unchanged membership, so completing this Store schedules no rebuild. The declaration was held from 2026-10-22 because #348 found variant identities duplicated within every HGDP+1kGP block while completion joins on ALID; the panels were repaired in place on 2026-11-01/02 and the EUR calibration was re-checked on the repaired panel, so that blocker is gone. The repaired AFR panel's receipt is /data/opengwasdb/reference/hgdp1kgp-hg38/repairs/20261101T225229Z-348-AFR.json (sha256 461efb2c7bd11451569ffd127c118c9e6ce5bf322f65ba7ced9dce0293289b94). Every Analysis in this release has Assigned Ancestry AFR, so completion imputes all 1,368. The completion phase writes to store.opengwasdb.partial, runs the Observed-View Check, and publishes under the release id OGS-00013-completed, replacing the Observed-Only Store at /data/opengwasdb/stores/OGS-00013/store.opengwasdb once it registers. Until that run finishes, the sentence above that reference completion is not part of this release still describes the published Store. Release Status stays validated.
+  Completion under its own id (2026-11-02). The bundle now declares completion_state:
+  reference_completed and, after its build phase, a complete block: complete-dense against the
+  HGDP+1kGP AFR LD Reference Resource, hgdp1kgp-hg38-ld at
+  /data/opengwasdb/reference/hgdp1kgp-hg38/panel, for ancestry AFR at 32 workers. The owner decided
+  this on 2026-10-21. It is the one amendment ADR 0037's Decision 1 allows an accepted bundle, the
+  amendment #305 clarifies: the build phase still plans exactly the argv that wrote the published
+  Store, with unchanged membership, so completing this Store schedules no rebuild. The declaration
+  was held from 2026-10-22 because #348 found variant identities duplicated within every HGDP+1kGP
+  block while completion joins on ALID; the panels were repaired in place on 2026-11-01/02 and the
+  EUR calibration was re-checked on the repaired panel, so that blocker is gone. The repaired AFR
+  panel's receipt is /data/opengwasdb/reference/hgdp1kgp-hg38/repairs/20261101T225229Z-348-AFR.json
+  (sha256 461efb2c7bd11451569ffd127c118c9e6ce5bf322f65ba7ced9dce0293289b94). Every Analysis in this
+  release has Assigned Ancestry AFR, so completion imputes all 1,368. The completion phase writes to
+  store.opengwasdb.partial, runs the Observed-View Check, and publishes under the release id
+  OGS-00013-completed, replacing the Observed-Only Store at
+  /data/opengwasdb/stores/OGS-00013/store.opengwasdb once it registers. Until that run finishes, the
+  sentence above that reference completion is not part of this release still describes the published
+  Store. Release Status stays validated.
 
-  Completed (2026-11-03). The completion phase ran on its own, as ADR 0037's single-id rule requires: an unforced `release OGS-00013` from this registry at 13a2cd6f, runtime opengwasdb 0.3.2 at 44f25a96 (format 0.2.0), triggered 2026-11-02 08:10 UTC and finished 2026-11-03 14:24 UTC, elapsed 30 h 15 m, exit 0. `complete-dense` against the repaired HGDP+1kGP AFR LD Reference Resource at /data/opengwasdb/reference/hgdp1kgp-hg38/panel, ancestry AFR at 32 workers, ran from 08:10 to 05:39 UTC (21 h 29 m) and imputed 4,371,398,322 associations, all of them in the 1,368 Analyses this release holds, every one of which is assigned AFR. The union variant axis grew from 36,964,976 to 40,200,979 variants, 3,236,003 of them new panel variants, leaving 642,870,785 off-panel missing cells and 57,687,168 imputation failures, which stay missing. The panel holds 804 HGDP+1kGP AFR samples against UK Biobank's ~50,000, so its 1,580 blocks are rank-deficient where the UKB EUR panel is full-rank, and completion quality is correspondingly lower: the per-Analysis median Pearson r is 0.9156 (0.9126 to 0.9295) against OGS-00012's 0.946 under the UKB EUR panel (ADR 0020). The completion HM3 Indexed Variant Subset (1,203,364 of 1,206,903 requested variants resolved, 3,539 absent, 21 m), the overview, validate (8 h 14 m) and the Observed-View Check followed, and completion register published the Store under the release id OGS-00013-completed, replacing the Observed-Only Store it had published. The replaced Store is archived under /data/opengwasdb/stores/OGS-00013/replaced/20261103T142444Z/. The Observed-View Check passed: 1,663,455,168 cells over 1,216 bands compared, no band mismatched, and every failing counter zero; 2,373 cells that were missing are imputed now and the panel added 141,468 rows inside the checked bands, both of which completion is expected to do. It is reported at /data/opengwasdb/stores/OGS-00013/work/observed-view-check.json. Completion reached every Analysis: all 1,368 carry imputed cells (3,156,338 to 3,225,113, median 3,195,818) and none is zero. The repaired panel's EAF was measured rather than assumed: the completed Store's eaf_reference reads r +0.9730 against the UKB ancestry-mixture group Africa (West), oriented to the Store's effect allele (n 7,700), and r +0.9882 against the mean observed EAF (n 16,457), where a panel holding the other allele's frequency reads about -0.97 on both. The Validation Record was copied into this bundle unchanged and reads status passed, no warnings, no errors, 1,368 Analyses, 40,200,979 variants, n_associations null and completion_state reference_completed, so the sentence above that reference completion is not part of this release no longer describes the published Store. Human scientific acceptance remains pending. Release Status stays validated.
+  Completed (2026-11-03). The completion phase ran on its own, as ADR 0037's single-id rule
+  requires: an unforced `release OGS-00013` from this registry at 13a2cd6f, runtime opengwasdb 0.3.2
+  at 44f25a96 (format 0.2.0), triggered 2026-11-02 08:10 UTC and finished 2026-11-03 14:24 UTC,
+  elapsed 30 h 15 m, exit 0. `complete-dense` against the repaired HGDP+1kGP AFR LD Reference
+  Resource at /data/opengwasdb/reference/hgdp1kgp-hg38/panel, ancestry AFR at 32 workers, ran from
+  08:10 to 05:39 UTC (21 h 29 m) and imputed 4,371,398,322 associations, all of them in the 1,368
+  Analyses this release holds, every one of which is assigned AFR. The union variant axis grew from
+  36,964,976 to 40,200,979 variants, 3,236,003 of them new panel variants, leaving 642,870,785
+  off-panel missing cells and 57,687,168 imputation failures, which stay missing. The panel holds
+  804 HGDP+1kGP AFR samples against UK Biobank's ~50,000, so its 1,580 blocks are rank-deficient
+  where the UKB EUR panel is full-rank, and completion quality is correspondingly lower: the
+  per-Analysis median Pearson r is 0.9156 (0.9126 to 0.9295) against OGS-00012's 0.946 under the UKB
+  EUR panel (ADR 0020). The completion HM3 Indexed Variant Subset (1,203,364 of 1,206,903 requested
+  variants resolved, 3,539 absent, 21 m), the overview, validate (8 h 14 m) and the Observed-View
+  Check followed, and completion register published the Store under the release id
+  OGS-00013-completed, replacing the Observed-Only Store it had published. The replaced Store is
+  archived under /data/opengwasdb/stores/OGS-00013/replaced/20261103T142444Z/. The Observed-View
+  Check passed: 1,663,455,168 cells over 1,216 bands compared, no band mismatched, and every failing
+  counter zero; 2,373 cells that were missing are imputed now and the panel added 141,468 rows
+  inside the checked bands, both of which completion is expected to do. It is reported at
+  /data/opengwasdb/stores/OGS-00013/work/observed-view-check.json. Completion reached every
+  Analysis: all 1,368 carry imputed cells (3,156,338 to 3,225,113, median 3,195,818) and none is
+  zero. The repaired panel's EAF was measured rather than assumed: the completed Store's
+  eaf_reference reads r +0.9730 against the UKB ancestry-mixture group Africa (West), oriented to
+  the Store's effect allele (n 7,700), and r +0.9882 against the mean observed EAF (n 16,457), where
+  a panel holding the other allele's frequency reads about -0.97 on both. The Validation Record was
+  copied into this bundle unchanged and reads status passed, no warnings, no errors, 1,368 Analyses,
+  40,200,979 variants, n_associations null and completion_state reference_completed, so the sentence
+  above that reference completion is not part of this release no longer describes the published
+  Store. Human scientific acceptance remains pending. Release Status stays validated.
 
-  Two readings of this Store's counts. manifest.json's provenance.completion.ld_panel_id reads eur-hg38-gpm although the run passed the HGDP+1kGP AFR panel; opengwasdb's complete-dense writes that constant and takes no panel identifier, so every completed Store carries the same string (opengwasdb#327). And the panel contributes 14,135,058 distinct canonical variants to the axis, 1,330 fewer than its 14,136,388 rows, because adjacent blocks both carry the variant on their shared boundary: the repair's figure counts block rows, not variants.
+  Two readings of this Store's counts. manifest.json's provenance.completion.ld_panel_id reads
+  eur-hg38-gpm although the run passed the HGDP+1kGP AFR panel; opengwasdb's complete-dense writes
+  that constant and takes no panel identifier, so every completed Store carries the same string
+  (opengwasdb#327). And the panel contributes 14,135,058 distinct canonical variants to the axis,
+  1,330 fewer than its 14,136,388 rows, because adjacent blocks both carry the variant on their
+  shared boundary: the repair's figure counts block rows, not variants.
 
-  Cost. The 1,580-block imputation took 21.5 h where OGS-00015's 1,120 blocks took 1 h 55 m at the same runtime, and the size difference accounts for it. The two complete-dense records differ 5.7x in Analyses, 1.6x in panel variants, 1.4x in blocks, 3.5x in union-axis variants and 8.2x in imputed cells, at twice the workers. Measured against the cells completion streams and encodes, union-axis variants times Analyses, they differ 19.6x; halving that for twice the workers predicts 9.8x the time and the run took 11.2x, so the per-worker rate is 22,200 axis cells a second here against 25,300 for OGS-00015 and 24,500 for OGS-00014. The remaining 12% falls on a host shared with other builds and validations through that night, at a load of about 14 to 28. Validate has the same shape: 16x OGS-00015's time against the same 19.6x.
+  Cost. The 1,580-block imputation took 21.5 h where OGS-00015's 1,120 blocks took 1 h 55 m at the
+  same runtime, and the size difference accounts for it. The two complete-dense records differ 5.7x
+  in Analyses, 1.6x in panel variants, 1.4x in blocks, 3.5x in union-axis variants and 8.2x in
+  imputed cells, at twice the workers. Measured against the cells completion streams and encodes,
+  union-axis variants times Analyses, they differ 19.6x; halving that for twice the workers predicts
+  9.8x the time and the run took 11.2x, so the per-worker rate is 22,200 axis cells a second here
+  against 25,300 for OGS-00015 and 24,500 for OGS-00014. The remaining 12% falls on a host shared
+  with other builds and validations through that night, at a load of about 14 to 28. Validate has
+  the same shape: 16x OGS-00015's time against the same 19.6x.
 
-  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  2026-11-25: converted to format 0.3.0 (#525, epic #520). The owner approved converting the
   priority Stores in place, and publishing them, provided validation shows only the recorded deviation
   warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
   `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
@@ -56,7 +164,7 @@ notes: |-
   Subset questions, 3 rsID misses, and a range PheWAS narrowed to 1,827 of 742,868 variants on
   chromosome 1) and asked the staged release the same ones: every answer matches. It was published
   through `pixi run publish-rewrite OGS-00013` (#533), which validated the staged release (the
-  completion validation ran at engine 0.21.0, 931ac166) and moved it into place at 20:57:19 UTC
+  completion validation ran at engine 0.21.0 (931ac166)) and moved it into place at 20:57:19 UTC
   (14 min 23 s wall); the 0.2.0 Store is archived, kept, at replaced/20261125T204300Z (129 GB).
   Validation passed with warnings: no errors, no carried warnings, and one warning, the accepted
   deviation `side_tables.se_exceptions_rounded` (40,459,462 of 40,464,780 se exceptions are exactly what
@@ -71,11 +179,14 @@ notes: |-
   imputed cells) return the same z, se, eaf and status as the 0.2.0 archive. Its Reference-Completed
   state and its Release Status, validated, are unchanged.
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with
+  `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the
+  owner's, accepted on #522.
 
-  Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
-  Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
-  OGS-00013` (ADR 0044, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  2026-11-26: Rho and Clumps added in place (#532, epic #520). The owner approved the run on
+  2026-11-26 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release
+  OGS-00013` (ADR 0044, engine 0.23.0 (e97f07b5)) staged a reflink copy and ran `opengwasdb
   build-dense-rho` (962.7 s, 935,028 Analysis pairs), `opengwasdb clump --ld-store
   AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store` (317.1 s), the overview
   (1.7 s) and validate (1,130.6 s), from 13:27:10 to 14:07:33 UTC (40 min 23 s wall, peak RSS

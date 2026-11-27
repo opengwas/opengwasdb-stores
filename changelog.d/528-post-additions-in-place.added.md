@@ -19,8 +19,8 @@
   direct `snakemake` find nothing to do, while a newer build manifest and
   `force=1` schedule what they always did, and a changed Store-writing step or
   a failed register record is refused by name, never reported up to date. A
-  release still to complete its own Store is completed first. This is stream D's route
-  for adding Rho and Clumps to the priority Stores (#520).
+  release still to complete its own Store is completed first. This is the route for
+  adding Rho and Clumps to the priority Stores (epic #520).
 - `pixi run publish-rewrite` and the in-place additions share one publication
   lifecycle and record envelope, `ogstores.staged_publication` (#528). An
   interrupted rewrite's rollback now also ignores a repeated Ctrl-C or SIGTERM.

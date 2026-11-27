@@ -15,30 +15,82 @@ description: 'MVP PMID 39024449 META observed input bundle (mvp-phs002453-meta-o
   1691-Analysis input manifest accepted for owner-authorized dev construction. Cross-ancestry META is
   observed-only. No Store has been built; human scientific acceptance is pending.'
 notes: |-
-  Ancestry bucket META; 1691 intended Analyses. candidate_store_key dense__pmid-39024449__Multi-ancestry. The exact 1691-Analysis META membership is accepted and frozen as the input manifest for owner-authorized dev construction. Release Status is 'accepted' because #247 is the registry's fixed-input acceptance gate for a buildable bundle; it is not scientific release acceptance, publication approval or mirror promotion, and no Store has been built or validated yet.
+  Ancestry bucket META; 1691 intended Analyses. candidate_store_key
+  dense__pmid-39024449__Multi-ancestry. The exact 1691-Analysis META membership is accepted and
+  frozen as the input manifest for owner-authorized dev construction. Release Status is 'accepted'
+  because #247 is the registry's fixed-input acceptance gate for a buildable bundle; it is not
+  scientific release acceptance, publication approval or mirror promotion, and no Store has been
+  built or validated yet.
 
-  Owner build authority. Owner approved the MVP bundle integration and the dev builds (opengwas/opengwasdb-stores#221 comment 6156153525; #232 comment 6156153173). The parent's exact 1691-Analysis record binding and staged-artifact review qualify this input manifest for authorized dev construction. (emit config id_allocation_status: owner-authorized-2026-10-13, owner_ordering_approved: true).
+  Owner build authority. Owner approved the MVP bundle integration and the dev builds
+  (opengwas/opengwasdb-stores#221 comment 6156153525; #232 comment 6156153173). The parent's exact
+  1691-Analysis record binding and staged-artifact review qualify this input manifest for authorized
+  dev construction. (emit config id_allocation_status: owner-authorized-2026-10-13,
+  owner_ordering_approved: true).
 
-  Evidence boundary. The Analytical Metadata comes from an owner-authorized bounded metadata resolution whose source-evidence scope is a capped diagnostic (resolver receipt source_evidence_scope: capped_pilot_diagnostic); 1691/1691 META Analyses resolved with outcome ok, zero escaped pids and an unchanged metadata content hash. A capped run is a diagnostic, never a whole-source SCI qualification. Human scientific acceptance remains pending (validation.yaml:acceptance.human_acceptance) and is not claimed here. The corrected re-emission is metadata-only from the existing qualified records (no resolution rerun, no association-body read).
+  Evidence boundary. The Analytical Metadata comes from an owner-authorized bounded metadata
+  resolution whose source-evidence scope is a capped diagnostic (resolver receipt
+  source_evidence_scope: capped_pilot_diagnostic); 1691/1691 META Analyses resolved with outcome ok,
+  zero escaped pids and an unchanged metadata content hash. A capped run is a diagnostic, never a
+  whole-source SCI qualification. Human scientific acceptance remains pending
+  (validation.yaml:acceptance.human_acceptance) and is not claimed here. The corrected re-emission
+  is metadata-only from the existing qualified records (no resolution rerun, no association-body
+  read).
 
-  Source ancestry. Every row carries source_ancestry_label META -- the exact authority acquisition-mapping ancestry. Cross-ancestry META is observed-only: assigned_ancestry is canonically empty on every row and ancestry_assignment_method is unassigned, because the method describes the canonical empty value. The immutable raw core inference was EUR for all 1,691 rows, preserved in the resolver records bound above and not published as a single-ancestry label.
+  Source ancestry. Every row carries source_ancestry_label META -- the exact authority
+  acquisition-mapping ancestry. Cross-ancestry META is observed-only: assigned_ancestry is
+  canonically empty on every row and ancestry_assignment_method is unassigned, because the method
+  describes the canonical empty value. The immutable raw core inference was EUR for all 1,691 rows,
+  preserved in the resolver records bound above and not published as a single-ancestry label.
 
-  Canonical tuple. 1,691 x empty/unassigned (assigned_ancestry/ancestry_assignment_method). The corrected re-emission changed only the source_ancestry_label column and the META canonical method, leaving every sample size, effect scale, source ID, source path and evidence tag unchanged.
+  Canonical tuple. 1,691 x empty/unassigned (assigned_ancestry/ancestry_assignment_method). The
+  corrected re-emission changed only the source_ancestry_label column and the META canonical method,
+  leaving every sample size, effect scale, source ID, source path and evidence tag unchanged.
 
-  Provenance bindings. This bundle is bound to the actual source snapshot named in source_snapshot (metadata refresh root + content sha, mapping table sha, source-metadata fingerprint snapshot, candidate table sha, planned manifest sha, resolution table sha) and to the resolver/emission records (resolution receipt sha, records index sha, merge receipt sha, emission config sha, parent-code receipt sha) plus the authoritative emission code commit 26d834eba609c21c09be0137c4a0d00846a355c3 and its two script sha256s. No scientific release validation, publication approval or mirror promotion is claimed.
+  Provenance bindings. This bundle is bound to the actual source snapshot named in source_snapshot
+  (metadata refresh root + content sha, mapping table sha, source-metadata fingerprint snapshot,
+  candidate table sha, planned manifest sha, resolution table sha) and to the resolver/emission
+  records (resolution receipt sha, records index sha, merge receipt sha, emission config sha,
+  parent-code receipt sha) plus the authoritative emission code commit
+  26d834eba609c21c09be0137c4a0d00846a355c3 and its two script sha256s. No scientific release
+  validation, publication approval or mirror promotion is claimed.
 
-  Store built and published (issue #331, 2026-10-22). The #221 batch built this release's Store from stores cde84de with opengwasdb 0.3.0 at 4e92256, format 0.2.0, GRCh38. The build ran from 2026-10-14 18:05 to 2026-10-20 20:55 UTC (146.8 h). Top hits, the HM3 Indexed Variant Subset and the overview followed, then validate, from 2026-10-20 22:43 to 2026-10-21 05:45 UTC (7.0 h). register published the Store on 2026-10-21 05:45 UTC and wrote the Validation Record, copied into this bundle unchanged. It replaces the bundle's earlier Validation Record, which recorded the owner authorization and the pending human acceptance the paragraphs above cite; that record is in git at its acceptance.commit, 9c9b92b. The new record reads status passed, with no warnings or errors, and reports 1,691 Analyses, 27,929,380 variants and 47,228,581,580 associations. The Store is observed-only, and stays so: cross-ancestry META is not reference-completed. The Store was built in a dev Artifact Root, /data/opengwasdb/work/epic232/221/dev-builds-16w. On 2026-10-22, tools/relocate_store.py moved it to /data/opengwasdb/stores, renaming its directory and rewriting the 33 artifact paths in its six step records; stdout and stderr were left as written. The receipt beside the Store, relocations/20261022T151443.904667Z.json, holds each record's sha256 before and after. The Store is published at /data/opengwasdb/stores/OGS-00016/store.opengwasdb. This supersedes the statements above, and in the description, that no Store has been built or validated. The Validation Record's acceptance.warnings still say "No Store build or validation has run." That line is carried over from the accepted bundle's earlier record and predates the build. Human scientific acceptance remains pending.
+  Store built and published (issue #331, 2026-10-22). The #221 batch built this release's Store from
+  stores cde84de with opengwasdb 0.3.0 at 4e92256, format 0.2.0, GRCh38. The build ran from
+  2026-10-14 18:05 to 2026-10-20 20:55 UTC (146.8 h). Top hits, the HM3 Indexed Variant Subset and
+  the overview followed, then validate, from 2026-10-20 22:43 to 2026-10-21 05:45 UTC (7.0 h).
+  register published the Store on 2026-10-21 05:45 UTC and wrote the Validation Record, copied into
+  this bundle unchanged. It replaces the bundle's earlier Validation Record, which recorded the
+  owner authorization and the pending human acceptance the paragraphs above cite; that record is in
+  git at its acceptance.commit, 9c9b92b. The new record reads status passed, with no warnings or
+  errors, and reports 1,691 Analyses, 27,929,380 variants and 47,228,581,580 associations. The Store
+  is observed-only, and stays so: cross-ancestry META is not reference-completed. The Store was
+  built in a dev Artifact Root, /data/opengwasdb/work/epic232/221/dev-builds-16w. On 2026-10-22,
+  tools/relocate_store.py moved it to /data/opengwasdb/stores, renaming its directory and rewriting
+  the 33 artifact paths in its six step records; stdout and stderr were left as written. The receipt
+  beside the Store, relocations/20261022T151443.904667Z.json, holds each record's sha256 before and
+  after. The Store is published at /data/opengwasdb/stores/OGS-00016/store.opengwasdb. This
+  supersedes the statements above, and in the description, that no Store has been built or
+  validated. The Validation Record's acceptance.warnings still say "No Store build or validation has
+  run." That line is carried over from the accepted bundle's earlier record and predates the build.
+  Human scientific acceptance remains pending.
 
-  Pre-release SE codec re-encode (2026-10-26, #326): under the one-time exception authorized before the project's first release, only the `se` and `se_exception_index` Blosc `typesize` values and encoded chunk bytes changed. `records/se-reencode.json` reports full-array decoded equality across 754,111 chunks and 7,319,802,368 bytes saved; the post-run Store validation passed. This physical-representation-only exception sets no precedent after release.
+  Pre-release SE codec re-encode (2026-10-26, #326): under the one-time exception authorized before
+  the project's first release, only the `se` and `se_exception_index` Blosc `typesize` values and
+  encoded chunk bytes changed. `records/se-reencode.json` reports full-array decoded equality across
+  754,111 chunks and 7,319,802,368 bytes saved; the post-run Store validation passed. This
+  physical-representation-only exception sets no precedent after release.
 
   Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 47228581580.
   That is exactly 1691 x 27929380, n_analyses times n_variants, not a count. `register` multiplied
   the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by
-  #322); this Store was registered before that change reached this branch. The product counts matrix cells, and this Store is observed-only, so many of those cells are empty; it is not the number of observed associations.
+  #322); this Store was registered before that change reached this branch. The product counts matrix
+  cells, and this Store is observed-only, so many of those cells are empty; it is not the number of
+  observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
 
-  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  2026-11-25: converted to format 0.3.0 (#525, epic #520). The owner approved converting the
   priority Stores in place, and publishing them, provided validation shows only the recorded deviation
   warnings (opengwas/opengwasdb-stores#520). This Store was converted from 0.2.0 by
   `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
@@ -56,25 +108,32 @@ notes: |-
   125,171,758,813. build_elapsed_s 575,509.077 is the 0.2.0 build's 560,415.087 plus 15,093.99 s for the
   conversion (13,955 s) and the staged release's validation. The Store reads without pysam, carries
   no variant_offsets.npy and no index.sqlite, and answers an Analysis, rsID, range and PheWAS read
-  with the same z, se and eaf as the 0.2.0 archive. The owner ruled on 25 Nov 2026 that this Store
+  with the same z, se and eaf as the 0.2.0 archive. The owner ruled on 2026-11-25 that this Store
   stays Observed-Only for now: completing a converted Store under the `indel_order` deviation can
   duplicate deletions, so it is completed only after a rebuild from source. The Release Status is
   unchanged at validated. The record's `completion_state` (observed_only) was filled by
-  `backfill-observed` after the publication (#525, 533c), because the 0.2.0 record predates #307.
+  `backfill-observed` after the publication (#525, #533), because the 0.2.0 record predates #307.
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner's, accepted on #522. It stays Observed-Only (owner, 2026-11-25): completing a converted Store under the indel_order deviation can duplicate deletions, so it is completed after a rebuild from source. Every Analysis is unassigned, so the declaration yields no Clumps (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped only because a mapping is required.
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with
+  `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the
+  owner's, accepted on #522. It stays Observed-Only (owner, 2026-11-25): completing a converted
+  Store under the indel_order deviation can duplicate deletions, so it is completed after a rebuild
+  from source. Every Analysis is unassigned, so the declaration yields no Clumps
+  (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped
+  only because a mapping is required.
 
-  Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
-  Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
-  OGS-00016` (ADR 0044, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  2026-11-26: Rho and Clumps added in place (#532, epic #520). The owner approved the run on
+  2026-11-26 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release
+  OGS-00016` (ADR 0044, engine 0.23.0 (e97f07b5)) staged a reflink copy and ran `opengwasdb
   build-dense-rho` (761.8 s, 1,428,895 Analysis pairs), `opengwasdb clump --ld-store
   EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (6.5 s), the overview (2.3
   s) and validate (1,023.8 s), from 14:38:41 to 15:08:45 UTC (30 min 5 s wall, peak RSS 23,877,776 kB;
   1-minute load average 66 at the start, 62 at the end (mean 69, up to 100)). The new record is
   `passed_with_warnings` for the one warning it had, the accepted se float16 deviation with its
-  conversion's note; no new warning. The Store stays Observed-Only (no completion, owner 25 Nov 2026).
+  conversion's note; no new warning. The Store stays Observed-Only (no completion, owner 2026-11-25).
   has_clumps is true, has_rho is true; no Clump Lead or locus: every Analysis is unassigned, so the
-  declaration yields no Clumps (`not_clumped.no_assigned_ancestry` 1,691) as the 25 Nov paragraph
+  declaration yields no Clumps (`not_clumped.no_assigned_ancestry` 1,691) as the 2026-11-25 paragraph
   says, and n_loci_5e8 stays blank; the p_5e_08 tier holds 5,990,491 rows, none with a Clump Lead;
   store_bytes 125,171,758,813 to 125,178,949,048. Read without pysam, rho_matrix is 1,691 x 1,691 and
   every off-diagonal pair is finite, rho_row gives 1,690 pairs, the Clumps read, and z, se and eaf of

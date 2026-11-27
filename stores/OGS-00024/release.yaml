@@ -14,9 +14,19 @@ generator:
   commands:
     - Rscript resources/generators/gwas-ssf-ragged/generate.R --config=families/metabolome-plasma-2023/generators/config-african.yaml --mode=emit
 notes: |
-  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: African, matching the candidates table's own store_key partitioning) rather than the pilot's mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
+  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry
+  (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: African,
+  matching the candidates table's own store_key partitioning) rather than the pilot's
+  mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry
+  from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue
+  #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
 
-  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,034 analyses, 7,067,555 variants, 31,986,793 associations. 22 duplicate (analysis, variant) pairs had conflicting z-scores across two source rows and were dropped entirely for those cells (opengwasdb#101) -- see validation.yaml's warning. Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op (opengwasdb#102). No Reference-Completed sibling exists yet.
+  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,034 analyses, 7,067,555 variants,
+  31,986,793 associations. 22 duplicate (analysis, variant) pairs had conflicting z-scores across
+  two source rows and were dropped entirely for those cells (opengwasdb#101) -- see
+  validation.yaml's warning. Reference completion is currently blocked: complete_ragged_store only
+  enumerates LD blocks via a cis window (trait_chr/trait_bp), which this no-gene-target family has
+  none of, so completion is a no-op (opengwasdb#102). No Reference-Completed sibling exists yet.
 
   Release Erratum (issue #133, applied here during the #252 migration): the
   quantitative Analyses stored `n_cases` and `n_controls` as 0 where the counts
@@ -87,11 +97,11 @@ notes: |
   replaced/20261111T233555Z/ were deleted. The archive keeps its records/ and validation.yaml, as
   ADR 0037 keeps on an unforced replacement, so the change stays dated and evidenced.
 
-  Rebuilt at format 0.3.0(issues #520 and #524, 2026-11-25). The owner approved rebuilding the
-  priority Stores at format 0.3.0 on 25 Nov 2026 (opengwas/opengwasdb-stores#498), and this one by a
+  2026-11-25: rebuilt at format 0.3.0 (#524, epic #520). The owner approved rebuilding the
+  priority Stores at format 0.3.0 on 2026-11-25 (opengwas/opengwasdb-stores#498), and this one by a
   forced run on this host: `pixi run -e workflow release OGS-00024 --config force=1`, after
   `release-dry`, from 4c1cdf88 (the commits made while it ran changed only the registry) with
-  opengwasdb 0.20.0 (c8ebe4ca), from 15:16:52 to 15:31:51 UTC, exit 0, in 14 m 59 s wall (peak RSS
+  opengwasdb 0.20.0 (c8ebe4ca), from 15:16:52 to 15:31:51 UTC, exit 0, in 14 min 59 s wall (peak RSS
   15,649,752 kB; load average 15.15 before and 45.60 after, with other jobs on the host). Steps: build
   803.3 s, top-hits 3.9 s, validate 50.3 s. The Store is observed_only, stamped format 0.3.0, and
   carries the 0.3.0 envelope (the variable-length ALID, position and source_alid sidecars,
@@ -103,8 +113,9 @@ notes: |
   had dropped the same two); the 312,200 variants lost are the indels that no longer have an
   association. The 44 rows between the 31,986,793 recorded for 0.2.1 and the 31,986,837 examined are
   20 Analyses whose source files list one key twice (19 indels, and the SNV above): 0.2.1 built 2 rows
-  fewer than the file holds for each, and 4 fewer for the two Analyses with two duplicated keys. I did
-  not reproduce 0.2.1's rule for duplicated keys; the 0.3.0 Admission record drops the indel pairs as
+  fewer than the file holds for each, and 4 fewer for the two Analyses with two duplicated keys.
+  0.2.1's rule for duplicated keys is not reproduced; the 0.3.0 Admission record drops the indel
+  pairs as
   unharmonised. Stored z and EAF equal the 0.2.1 values on every shared row of the three Analyses
   compared; SE is now coded from the source's SE coefficients (opengwasdb ADR 0068) and sits within
   0.2% of the source's standard error, where 0.2.1 differed by up to 13.5% in those three. validate
@@ -114,22 +125,27 @@ notes: |
   is archived under /data/opengwasdb/stores/OGS-00024/replaced/20261125T151700Z/, kept because the run
   was forced (#309); deleting it is the owner's call. The Release Status is unchanged at validated.
 
-  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00013 (AFR), the Dense Store on the same panel and ancestry. It also adds `post.clumps` with `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block,
+  `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00013
+  (AFR), the Dense Store on the same panel and ancestry. It also adds `post.clumps` with
+  `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the
+  owner's, accepted on #522.
 
-  Completed in place at format 0.3.0, with Clumps (issues #520 and #532, 2026-11-26). The owner approved
-  the run on 26 Nov 2026 (command, host, budget and publication effect). The first attempt (an unforced
-  `pixi run -e workflow release OGS-00024`, started before the #533e fix) ran `complete` (3,520.3 s),
+  2026-11-26: completed in place at format 0.3.0, with Clumps (#532, epic #520). The owner approved
+  the run on 2026-11-26 (command, host, budget and publication effect). The first attempt (an unforced
+  `pixi run -e workflow release OGS-00024`, started before #532's register fix) ran `complete` (3,520.3 s),
   `completion-clump` (29.3 s), `completion-validate` (99.2 s) and `completion-observed-view-check` (373.5
   s), then refused at `completion_register` for want of a build-phase `clump` record (1 h 7 min 39 s wall,
-  peak RSS 14,385,212 kB, load average 74 before and 76 after). Its logs are in
-  logs/532/OGS-00024/attempt-register-refused/. The Observed-Only Store stayed published and nothing was
-  archived. After #533e the unforced run resumed at `completion_register` and published in 29 s (peak RSS
+  peak RSS 14,385,212 kB, load average 74 before and 76 after). The Observed-Only Store stayed
+  published and nothing was
+  archived. After that fix the unforced run resumed at `completion_register` and published in 29 s (peak RSS
   415 MB; load 66 to 123), 14:27:17 to 14:27:47 UTC. Times: 2026-11-26 13:03:37 to 14:11:16 UTC. The
   completion phase published the completed Store, `OGS-00024-completed` as its release identity, in place
   of the Observed-Only Store; it takes no force (ADR 0037). Counts, Observed-Only to completed: variants
   6,755,355 to 12,703,501, associations 30,640,279 to 53,236,797, store_bytes 977,550,128 to
   1,592,364,649; 1034 Analyses, identical. The Observed-View Check passed (max |dz|, |dse|, |deaf| all
-  0.0, no failures, 370.5 s; the child's variant order is not the parent's, and every parent row maps). Clumps: n_loci_5e8 4005, n_unclumped_5e8 1226 (all absent from the hgdp1kgp-v2-AFR
+  0.0, no failures, 370.5 s; the child's variant order is not the parent's, and every parent row
+  maps). Clumps: n_loci_5e8 4005, n_unclumped_5e8 1226 (all absent from the hgdp1kgp-v2-AFR
   LD Store, none ambiguous); the p_5e_08 tier holds 14,314 rows, 12,224 with a Clump Lead and 2,090
   without (the imputed rows and the 1226 absent markers). validate reports no errors and 1,030 warnings:
   1,029 EAF-orientation (one per Analysis, as before) and the note that the Analyses were resolved with

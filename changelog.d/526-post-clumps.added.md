@@ -1,4 +1,4 @@
-- **A Build Recipe can declare `post.clumps: true` (#526, stream D of #520).** The
+- **A Build Recipe can declare `post.clumps: true` (#526, epic #520).** The
   release then plans `opengwasdb clump <store> --ld-store ANCESTRY=PATH …` after
   `top-hits` and `rho`, in the build phase and the completion phase, on every
   layout. The LD Store mapping is the recipe's explicit `post.ld_stores` and is

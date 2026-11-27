@@ -83,7 +83,9 @@ notes: |
   Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 2249954069.
   That is exactly 241 x 9335909, n_analyses times n_variants, not a count. `register` multiplied
   the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by
-  #322); this Store was registered before that change reached this branch. The product counts matrix cells, and this Store is observed-only, so many of those cells are empty; it is not the number of observed associations.
+  #322); this Store was registered before that change reached this branch. The product counts matrix
+  cells, and this Store is observed-only, so many of those cells are empty; it is not the number of
+  observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
 
@@ -131,7 +133,7 @@ notes: |
   AMR panel on OGS-00014 and 0.946 for the UKB EUR panel on OGS-00012, though
   the Analyses they were measured over differ. The completion HM3 Indexed
   Variant Subset (1,131,466 of 1,206,903 requested variants resolved, 75,437
-  absent, none overflow-only), the overview, validate (30 m 14 s) and the
+  absent, none overflow-only), the overview, validate (30 min 14 s) and the
   Observed-View Check followed, and completion register published the Store
   under the release id OGS-00015-completed, replacing the Observed-Only Store it
   had published. The replaced Store is archived under
@@ -158,7 +160,7 @@ notes: |
   describes the published Store. Human scientific acceptance remains pending.
   Release Status stays validated.
 
-  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  2026-11-25: converted to format 0.3.0 (#525, epic #520). The owner approved converting the
   priority Stores in place, and publishing them, provided validation shows only the recorded deviation
   warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
   `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
@@ -168,7 +170,7 @@ notes: |
   Subset questions, 3 rsID misses, and a range PheWAS narrowed to 10,000 of 222,793 variants on
   chromosome 1) and asked the staged release the same ones: every answer matches. It was published
   through `pixi run publish-rewrite OGS-00015` (#533), which validated the staged release (the
-  completion validation ran at engine 0.21.0, 931ac166) and moved it into place at 22:47:35 UTC
+  completion validation ran at engine 0.21.0 (931ac166)) and moved it into place at 22:47:35 UTC
   (2 min 38 s wall); the 0.2.0 Store is archived, kept, at replaced/20261125T224500Z (8.2 GB).
   Validation passed with warnings: no errors, no carried warnings, and one warning, the accepted
   deviation `side_tables.se_exceptions_rounded` (3,046,179 of 3,074,915 se exceptions are exactly what a
@@ -183,11 +185,14 @@ notes: |
   and status as the 0.2.0 archive. Its Reference-Completed state and its Release Status, validated, are
   unchanged.
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with
+  `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the
+  owner's, accepted on #522.
 
-  Rho and Clumps added in place (issues #520 and #531, 2026-11-26). The owner approved the run on 26 Nov
-  2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release OGS-00015`
-  (ADR 0044, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb build-dense-rho` (106.0 s,
+  2026-11-26: Rho and Clumps added in place (#531, epic #520). The owner approved the run on
+  2026-11-26 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release OGS-00015`
+  (ADR 0044, engine 0.23.0 (e97f07b5)) staged a reflink copy and ran `opengwasdb build-dense-rho` (106.0 s,
   28,920 Analysis pairs), `opengwasdb clump --ld-store EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS/
   hgdp1kgp-v2-EAS-k10.store` (3.9 s; 241 Analyses clumped; n_loci_5e8 191, n_unclumped_5e8 842: 842 absent,
   0 ambiguous, 1,197 imputed), the overview (1.4 s) and validate (154.3 s), from 12:39:09 to 12:43:46 UTC
