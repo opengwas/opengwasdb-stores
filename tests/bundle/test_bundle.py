@@ -371,6 +371,8 @@ class TestBundleContract(unittest.TestCase):
     # when the lock moves, its pin becomes the literal commit, as these did when the
     # lock moved to 0.26.0 for opengwasdb#509.
     AT_LOCK = engine.locked_commit(REPO_ROOT / "pixi.lock")
+    # The lock when #509/#532's records were written (engine 0.26.0).
+    AT_0_26_0 = "964ac1b28a3096553559d4a8565d877a884470e9"
     #: engine 0.23.0, the lock of #531's and #532's in-place additions.
     AT_0_23_0 = "e97f07b51094e4635db571f72407fcdb7f8d56e7"
     MVP_RECORD_RUNTIME = {
@@ -387,11 +389,11 @@ class TestBundleContract(unittest.TestCase):
     }
 
     def test_ogs_00011_record_is_the_in_place_recount_rho_and_clumps_at_the_lock(self) -> None:
-        """#532 recounted OGS-00011's top-hit counts and added Rho and Clumps in place at the locked engine."""
+        """#532 recounted OGS-00011's top-hit counts and added Rho and Clumps in place at engine 0.26.0."""
         loaded = bundle.load("OGS-00011", registry_root=REPO_ROOT / "stores")
         validation = loaded.validation
         record_check()
-        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_0_26_0}")
         observed = validation["observed"]
         record_check()
         self.assertEqual(
@@ -405,11 +407,11 @@ class TestBundleContract(unittest.TestCase):
         )
 
     def test_ogs_00032_record_is_the_forced_rebuild_and_completion_at_the_lock(self) -> None:
-        """#532 rebuilt OGS-00032 without its ten mis-scaled Analyses and completed it, at the locked engine."""
+        """#532 rebuilt OGS-00032 without its ten mis-scaled Analyses and completed it, at engine 0.26.0."""
         loaded = bundle.load("OGS-00032", registry_root=REPO_ROOT / "stores")
         validation = loaded.validation
         record_check()
-        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_0_26_0}")
         observed = validation["observed"]
         record_check()
         self.assertEqual(
@@ -428,11 +430,11 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(len(excluded), 10)
 
     def test_ogs_00033_record_is_the_forced_rebuild_and_completion_at_the_lock(self) -> None:
-        """#532 rebuilt OGS-00033 without GCST90278111 and completed it, at the locked engine."""
+        """#532 rebuilt OGS-00033 without GCST90278111 and completed it, at engine 0.26.0."""
         loaded = bundle.load("OGS-00033", registry_root=REPO_ROOT / "stores")
         validation = loaded.validation
         record_check()
-        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_0_26_0}")
         observed = validation["observed"]
         record_check()
         self.assertEqual(
