@@ -1,7 +1,7 @@
 """The fixed small build (#390): a 2-variant GWAS-VCF through `opengwasdb build-dense-vcf`.
 
 The same input serves the runner's timed build and the tests' tiny Store. Its
-one Analysis is `fx1`; its variants are rs1 (1:10000:A:G) and rs2 (1:20000:C:T).
+one Analysis is `fx1`; its variants are rs1 (1:15000:A:G; chr1 1-10,000 is an assembly gap, which builds drop, opengwasdb#410) and rs2 (1:20000:C:T).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ VCF = (
     '##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele frequency">\n'
     '##FORMAT=<ID=SS,Number=A,Type=Float,Description="Sample size">\n'
     "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRAIT\n"
-    "chr1\t10000\trs1\tA\tG\t.\tPASS\tAF=0.2\tEZ:ES:SE:LP:AF:SS\t5.0:0.1:0.02:5.0:0.2:10000\n"
+    "chr1\t15000\trs1\tA\tG\t.\tPASS\tAF=0.2\tEZ:ES:SE:LP:AF:SS\t5.0:0.1:0.02:5.0:0.2:10000\n"
     "chr1\t20000\trs2\tC\tT\t.\tPASS\tAF=0.4\tEZ:ES:SE:LP:AF:SS\t-6.666667:-0.2:0.03:8.0:0.4:10000\n"
 )
 ANALYSES_HEADER = (
