@@ -176,35 +176,7 @@ full <- studies[FULL.SUMMARY.STATISTICS == "yes"]
 ## and then rows are pooled per accession, weighted by sample size, to
 ## pick the largest contributing major group.
 ## ---------------------------------------------------------------------
-ancestry_map <- c(
-  "European" = "European",
-  "East Asian" = "East Asian",
-  "South Asian" = "South Asian",
-  "South East Asian" = "South East Asian",
-  "Central Asian" = "Central Asian",
-  "African American or Afro-Caribbean" = "African",
-  "African unspecified" = "African",
-  "Sub-Saharan African" = "African",
-  "Hispanic or Latin American" = "Hispanic or Latin American",
-  "Greater Middle Eastern" = "Greater Middle Eastern",
-  "Native American" = "Native American",
-  "Oceanian" = "Oceanian",
-  "Aboriginal Australian" = "Oceanian",
-  "Asian unspecified" = "Asian (unspecified)",
-  "Other" = "Other",
-  "Other admixed ancestry" = "Multiple/Mixed",
-  "NR" = "NR/Unknown"
-)
-
-major_group_for_row <- function(raw) {
-  stripped <- gsub("\\([^)]*\\)", "", raw)
-  toks <- trimws(unlist(strsplit(stripped, ",")))
-  toks <- toks[toks != ""]
-  groups <- unique(unname(ancestry_map[toks]))
-  groups <- groups[!is.na(groups)]
-  if (length(groups) != 1) return("Multiple/Mixed")
-  groups
-}
+source("src/manifest_generation/providers/gwas_catalog/ancestry_groups.R")
 
 init <- ancestries[STAGE == "initial"]
 init[, n_individuals := suppressWarnings(as.numeric(NUMBER.OF.INDIVIDUALS))]

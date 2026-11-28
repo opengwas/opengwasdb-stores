@@ -68,4 +68,60 @@ check(is.na(r$n_cases) && is.na(r$n_controls), "empty: n_cases/n_controls should
 r <- resolve_gwas_catalog_ssf_metadata(NA_character_)
 check(r$resolution_status == "unresolved", "NA input: expected unresolved, got %s", r$resolution_status)
 
+# --- Numberless "cases"/"controls" bits (#557). GWAS Catalog sometimes writes the
+# count apart from the word: "181,522 European ancestry, unknown cases". The
+# count is then the number in the nearest preceding bit that carries one, and
+# that bit is not also counted into sample_size. Strings are copied from the
+# 2026-11-19 studies file; expected values are read off them by hand.
+parsed_totals <- function(x) {
+  p <- .parse_sample_size_components(x)
+  tot <- function(w) sum(p$n[p$what == w])
+  c(cases = tot("cases"), controls = tot("controls"), sample_size = tot("sample_size"))
+}
+check_parse <- function(label, x, cases, controls, sample_size = 0) {
+  got <- parsed_totals(x)
+  check(got[["cases"]] == cases, "%s: expected cases=%s, got %s", label, cases, got[["cases"]])
+  check(got[["controls"]] == controls, "%s: expected controls=%s, got %s", label, controls, got[["controls"]])
+  check(got[["sample_size"]] == sample_size, "%s: expected sample_size part=%s, got %s", label, sample_size, got[["sample_size"]])
+}
+
+gcst90132314 <- "181,522 European ancestry, unknown cases, 984,168 European ancestry, unknown controls"
+check_parse("GCST90132314", gcst90132314, 181522, 984168)
+r <- resolve_gwas_catalog_ssf_metadata(gcst90132314)
+check(r$resolution_status == "resolved", "GCST90132314: expected resolved, got %s", r$resolution_status)
+check(r$stored_effect_scale == "log_or", "GCST90132314: expected log_or, got %s", r$stored_effect_scale)
+check(r$sample_size_kind == "case_control", "GCST90132314: expected case_control, got %s", r$sample_size_kind)
+check(r$n_cases == 181522 && r$n_controls == 984168, "GCST90132314: case/control counts, got %s/%s", r$n_cases, r$n_controls)
+check(r$sample_size == 1165690, "GCST90132314: expected sample_size=1165690, got %s", r$sample_size)
+
+# Two ancestry words before the numberless bit (GCST90132315).
+check_parse("GCST90132315",
+  "210,842 European ancestry, East Asian ancestry, unknown cases, 1,167,328 European ancestry, East Asian ancestry, unknown controls",
+  210842, 1167328)
+# Ancestry list that itself contains ", " (GCST90566806, GCST90627741, GCST90444202).
+check_parse("GCST90566806",
+  paste0("186,917 European, East Asian, African, African American, South Asian, Hispanic or admixed ancestry cases, ",
+         "796,809 European, East Asian, African, African American, South Asian, Hispanic or admixed ancestry controls"),
+  186917, 796809)
+check_parse("GCST90132193",
+  paste0("5,085 European, African, Greater Middle Eastern (Middle Eastern, North African or Persian), Hispanic or Latin American, ",
+         "Native American, South East Asian, East Asian and South Asian ancestry cases, ",
+         "571,727 European, African, Greater Middle Eastern (Middle Eastern, North African or Persian), Hispanic or Latin American, ",
+         "Native American, South East Asian, East Asian and South Asian ancestry controls"),
+  5085, 571727)
+# One comma only: the numberless bit directly follows its number (GCST90103739).
+check_parse("GCST90103739", "3,739 Chinese, Korean ancestry cases, 7,241 Chinese, Korean ancestry controls", 3739, 7241)
+# A sex word and a repeated "cases" in the controls bit (GCST90483474).
+check_parse("GCST90483474",
+  paste0("10,886 European, South Asian,  African American or Afro-Caribbean and other admixed ancestry female cases, ",
+         "995,982 European, South Asian,  African American or Afro-Caribbean and other admixed ancestry female cases female controls"),
+  10886, 995982)
+# No space after the comma and a singular "control" (GCST90301705).
+check_parse("GCST90301705",
+  "43,794 European ancestry, African ancestry, Asian ancestry cases,44,187 European ancestry, African ancestry, Asian ancestry control",
+  43794, 44187)
+# Existing shapes keep their counts.
+check_parse("simple", "10,007 cases, 474,591 controls", 10007, 474591)
+check_parse("quantitative", "1,000 European ancestry individuals", 0, 0, 1000)
+
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))

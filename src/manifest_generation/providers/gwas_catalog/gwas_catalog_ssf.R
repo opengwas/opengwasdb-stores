@@ -20,30 +20,47 @@ source("src/manifest_generation/providers/gwas_catalog/contract.R")
 # "cases"/"controls", or "1,000 European ancestry individuals" -> one row
 # tagged "sample_size" (no case/control label present). Returns NULL when
 # nothing parseable is present (empty string, or no numeric component).
+#
+# A "cases"/"controls" bit can carry no number of its own, because the count
+# sits earlier in the string: "181,522 European ancestry, unknown cases", or
+# "5,085 European, African, ... and South Asian ancestry cases" (an ancestry
+# list split on ", "). Its count is then the first number of the nearest
+# preceding bit that has one and is not itself labelled; that bit is consumed,
+# so it is not counted again as a sample_size (#557). Bits are split on ", " or
+# on a bare "," before a digit, and "control" reads as "controls".
 .parse_sample_size_components <- function(x) {
   if (is.na(x)) return(NULL)
-  bits <- unlist(strsplit(gsub("(\\d),(?=\\d)", "\\1", x, perl = TRUE), ", "))
-  cases_bits <- grep("cases", bits, value = TRUE)
-  controls_bits <- grep("controls", bits, value = TRUE)
-  other_bits <- bits[!bits %in% c(cases_bits, controls_bits)]
-
-  parse_bit <- function(bit_strings, label) {
-    if (length(bit_strings) == 0) return(NULL)
-    n <- vapply(strsplit(bit_strings, " "), function(toks) {
-      v <- suppressWarnings(as.numeric(toks))
-      v <- v[!is.na(v)]
-      if (length(v) == 0) 0 else v[1]
-    }, numeric(1))
-    data.table(n = n, what = label)
+  bits <- unlist(strsplit(gsub("(\\d),(?=\\d)", "\\1", x, perl = TRUE), ",\\s+|,(?=\\d)", perl = TRUE))
+  first_number <- function(bit) {
+    v <- suppressWarnings(as.numeric(strsplit(bit, " ")[[1]]))
+    v <- v[!is.na(v)]
+    if (length(v) == 0) NA_real_ else v[1]
   }
-
-  out <- rbindlist(list(
-    parse_bit(cases_bits, "cases"),
-    parse_bit(controls_bits, "controls"),
-    parse_bit(other_bits, "sample_size")
-  ))
+  # A bit holding both words ("... cases female controls") takes the later one.
+  last_word <- function(bit) {
+    w <- regmatches(bit, gregexpr("cases|controls?", bit))[[1]]
+    if (length(w) == 0) NA_character_ else if (startsWith(w[length(w)], "control")) "controls" else "cases"
+  }
+  label <- vapply(bits, last_word, character(1), USE.NAMES = FALSE)
+  num <- vapply(bits, first_number, numeric(1), USE.NAMES = FALSE)
+  consumed <- rep(FALSE, length(bits))
+  n <- rep(0, length(bits))
+  for (i in seq_along(bits)) {
+    if (is.na(label[i])) next
+    if (!is.na(num[i])) { n[i] <- num[i]; next }
+    j <- which(is.na(label[seq_len(i - 1)]) & !is.na(num[seq_len(i - 1)]) & !consumed[seq_len(i - 1)])
+    if (length(j)) {
+      j <- max(j)
+      n[i] <- num[j]
+      consumed[j] <- TRUE
+    }
+  }
+  is_other <- is.na(label) & !consumed
+  n[is_other] <- ifelse(is.na(num[is_other]), 0, num[is_other])
+  keep <- !consumed
+  out <- data.table(n = n[keep], what = ifelse(is.na(label), "sample_size", label)[keep])
   if (!nrow(out)) return(NULL)
-  out
+  out[order(match(what, c("cases", "controls", "sample_size")))]
 }
 
 #' Resolve one GWAS Catalog study's analytical metadata from its raw

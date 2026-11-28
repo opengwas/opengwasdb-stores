@@ -1,0 +1,1 @@
+The GWAS Catalog adapter no longer counts "NR" (not reported) as a second ancestry, so `European, NR` groups as European, and it reads a numberless "cases"/"controls" bit (as in `181,522 European ancestry, unknown cases`) from the count that precedes it, so those studies resolve as case-control with a log-OR scale (#557).
