@@ -27,7 +27,7 @@ source("src/manifest_generation/providers/gwas_catalog/contract.R")
 # list split on ", "). Its count is then the first number of the nearest
 # preceding bit that has one and is not itself labelled; that bit is consumed,
 # so it is not counted again as a sample_size (#557). Bits are split on ", " or
-# on a bare "," before a digit, and "control" reads as "controls".
+# on a bare "," before a digit, and a bit ending in "control" reads as "controls".
 .parse_sample_size_components <- function(x) {
   if (is.na(x)) return(NULL)
   bits <- unlist(strsplit(gsub("(\\d),(?=\\d)", "\\1", x, perl = TRUE), ",\\s+|,(?=\\d)", perl = TRUE))
@@ -38,7 +38,7 @@ source("src/manifest_generation/providers/gwas_catalog/contract.R")
   }
   # A bit holding both words ("... cases female controls") takes the later one.
   last_word <- function(bit) {
-    w <- regmatches(bit, gregexpr("cases|controls?", bit))[[1]]
+    w <- regmatches(bit, gregexpr("cases|controls|control$", bit))[[1]]
     if (length(w) == 0) NA_character_ else if (startsWith(w[length(w)], "control")) "controls" else "cases"
   }
   label <- vapply(bits, last_word, character(1), USE.NAMES = FALSE)

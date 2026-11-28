@@ -120,6 +120,9 @@ check_parse("GCST90483474",
 check_parse("GCST90301705",
   "43,794 European ancestry, African ancestry, Asian ancestry cases,44,187 European ancestry, African ancestry, Asian ancestry control",
   43794, 44187)
+# "control" inside a bit is not a controls label: GCST007241 is quantitative.
+check_parse("GCST007241",
+  "1,456 British ancestry obese children, 6,460 European ancestry control adults", 0, 0, 7916)
 # Existing shapes keep their counts.
 check_parse("simple", "10,007 cases, 474,591 controls", 10007, 474591)
 check_parse("quantitative", "1,000 European ancestry individuals", 0, 0, 1000)
