@@ -42,6 +42,7 @@ import yaml
 from ld_registry import index as ld_index
 from ld_registry import record, rows, writer
 from panel_declarations import copy_declarations
+from yardstick.fixture import write_ld_records
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -1047,9 +1048,7 @@ class TestTheIndexChecksLinks(RegistryCase):
     UNRECORDED = [{"path": SCRATCH_69, "reason": "ogld#69's scratch Partner Rows; not a Store of its own"}]
 
     def registry(self, *documents: dict[str, Any]) -> Path:
-        for document in documents:
-            write_yaml(self.ld_root / document["ld_id"] / "record.yaml", document)
-        return self.ld_root
+        return write_ld_records(self.ld_root, *documents)
 
     def refusals(self, *documents: dict[str, Any]) -> str:
         with self.assertRaises(ld_index.InvalidRecords) as caught:
@@ -1272,10 +1271,10 @@ class TestTheCommittedRecords(unittest.TestCase):
     """Seam 4: the six records #538 adds, against #496's draft rows."""
 
     DRAFT = {
-        "OGL-00002": ("hgdp1kgp-v2-AFR-k10", "retiring", "AFR", "608", "10", "14374341", "to confirm", "ogld#7"),
-        "OGL-00003": ("hgdp1kgp-v2-AMR-k10", "retiring", "AMR", "341", "10", "7561067", "to confirm", "ogld#7"),
-        "OGL-00004": ("hgdp1kgp-v2-EAS-k10", "retiring", "EAS", "724", "10", "7837854", "to confirm", "ogld#7"),
-        "OGL-00005": ("hgdp1kgp-v2-SAS-k10", "retiring", "SAS", "672", "10", "8879035", "to confirm", "ogld#7"),
+        "OGL-00002": ("hgdp1kgp-v2-AFR-k10", "retired", "AFR", "608", "10", "14374341", "to confirm", "ogld#7"),
+        "OGL-00003": ("hgdp1kgp-v2-AMR-k10", "retired", "AMR", "341", "10", "7561067", "to confirm", "ogld#7"),
+        "OGL-00004": ("hgdp1kgp-v2-EAS-k10", "retired", "EAS", "724", "10", "7837854", "to confirm", "ogld#7"),
+        "OGL-00005": ("hgdp1kgp-v2-SAS-k10", "retired", "SAS", "672", "10", "8879035", "to confirm", "ogld#7"),
         "OGL-00006": ("hgdp1kgp-v2-EUR-k10 (Partner Rows)", "reference", "EUR", "665", "10", "8586889", "to confirm",
                       "ogld#69, ogld#81"),
         "OGL-00012": ("panukb-EUR-k15", "built", "EUR", "420542", "15", "23128732", "CC BY 4.0", "ogld#10"),
@@ -1293,11 +1292,12 @@ class TestTheCommittedRecords(unittest.TestCase):
                     values,
                 )
 
-    def test_the_retiring_stores_name_what_their_retirement_waits_on(self) -> None:
+    def test_the_retired_stores_name_the_confirmation_that_retired_them(self) -> None:
+        """OGL-00002..00005 were retired on the owner's confirmation in ogld#92 (27 Nov 2026), and their files deleted."""
         for ld_id in ("OGL-00002", "OGL-00003", "OGL-00004", "OGL-00005"):
             with self.subTest(ld_id=ld_id):
                 notes = record.load_record(REPO_ROOT / "stores" / "ld" / ld_id / "record.yaml")[0]["notes"]
-                self.assertIn("ogdb-api#180", notes)
+                self.assertIn("ogld#92", notes)
                 self.assertIn("owner", notes)
 
     def test_the_overlay_names_its_links_and_its_unrecorded_target(self) -> None:

@@ -103,6 +103,18 @@ class NotApplicable(Exception):
     """The Store's layout refuses this query, or the Store lacks what it reads: recorded `not_applicable`."""
 
 
+def attempt(out: dict[str, Any], wanted: Any, name: str, fn: Callable[[], dict[str, Any]]) -> None:
+    """Record measure `name` in `out` if `wanted` lists it: measured, `not_applicable`, or `unavailable` with its error."""
+    if name not in wanted:
+        return
+    try:
+        out[name] = fn()
+    except NotApplicable as why:
+        out[name] = {"status": "not_applicable", "reason": str(why)}
+    except Exception as error:  # a measure the Store cannot answer is recorded, not hidden
+        out[name] = {"status": "unavailable", "error": f"{type(error).__name__}: {error}"[:500]}
+
+
 def open_store(store_path: Path) -> Any:
     """The engine's query handle for a Store. The one place yardstick opens a Store, so tools reuse it."""
     from opengwasdb.query import query_store
@@ -136,35 +148,28 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
     wanted = entry["measures"]
     out: dict[str, Any] = {}
 
-    def attempt(name: str, fn: Callable[[], dict[str, Any]]) -> None:
-        if name not in wanted:
-            return
-        try:
-            out[name] = fn()
-        except NotApplicable as why:
-            out[name] = {"status": "not_applicable", "reason": str(why)}
-        except Exception as error:  # a measure the Store cannot answer is recorded, not hidden
-            out[name] = {"status": "unavailable", "error": f"{type(error).__name__}: {error}"[:500]}
+    def take(name: str, fn: Callable[[], dict[str, Any]]) -> None:
+        attempt(out, wanted, name, fn)
 
     def open_and_close() -> None:
         handle = open_store(store_path)
         handle.close()
 
-    attempt("open", lambda: time_calls(open_and_close, reps_of("open")))
+    take("open", lambda: time_calls(open_and_close, reps_of("open")))
     q = open_store(store_path)
     try:
-        attempt("phewas_rsid", lambda: time_calls(lambda: q.phewas(entry["rsid"]), reps_of("phewas_rsid"), count=rows))
-        attempt("phewas_alid", lambda: time_calls(lambda: q.phewas(entry["alid"]), reps_of("phewas_alid"), count=rows))
+        take("phewas_rsid", lambda: time_calls(lambda: q.phewas(entry["rsid"]), reps_of("phewas_rsid"), count=rows))
+        take("phewas_alid", lambda: time_calls(lambda: q.phewas(entry["alid"]), reps_of("phewas_alid"), count=rows))
         pos = entry.get("position")
-        attempt(
+        take(
             "phewas_position",
             lambda: time_calls(
                 lambda: q.range_phewas(pos["chromosome"], pos["position"], pos["position"]),
                 reps_of("phewas_position"), count=rows,
             ),
         )
-        attempt("analysis_full", lambda: time_calls(lambda: q.analysis(entry["analysis_id"]), reps_of("analysis_full"), count=rows))
-        _measure_facade_queries(q, entry, reps_of, attempt)
+        take("analysis_full", lambda: time_calls(lambda: q.analysis(entry["analysis_id"]), reps_of("analysis_full"), count=rows))
+        _measure_facade_queries(q, entry, reps_of, take)
         if "analysis_hm3" in wanted:
             def hm3() -> dict[str, Any]:
                 if not applies("analysis_hm3", entry):
@@ -189,9 +194,9 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
                     "subset_reference_assembly": str(subset.reference_assembly),
                     "subset_input_sha256": str(subset.input_sha256),
                 }
-            attempt("analysis_hm3", hm3)
+            take("analysis_hm3", hm3)
         region = entry.get("region")
-        attempt(
+        take(
             "region",
             lambda: time_calls(
                 lambda: q.range_phewas(region["chromosome"], region["start"], region["end"]),
@@ -200,7 +205,7 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
         )
     finally:
         q.close()
-    attempt("bytes_on_disk", lambda: bytes_on_disk(store_path))
+    take("bytes_on_disk", lambda: bytes_on_disk(store_path))
     return out
 
 
@@ -269,13 +274,13 @@ def _measure_facade_queries(q: Any, entry: dict[str, Any], reps_of: Callable[[st
     attempt("rho_matrix", rho("rho_matrix", lambda q, w: q.rho_matrix()))
 
 
-def sample_peak(read: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+def sample_peak(read: Callable[[], Any], count: Callable[[Any], int] = rows) -> dict[str, Any]:
     """RSS before and during one read. An empty read is refused, never recorded as a peak."""
     baseline = rss_mb()
     with RssSampler() as sampler:
         result = read()
     peak = max(sampler.peak_mb, rss_mb())
-    n_rows = rows(result)
+    n_rows = count(result)
     if n_rows == 0:
         raise RuntimeError("the fixed query returned no rows")
     return {

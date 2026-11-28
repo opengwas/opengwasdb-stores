@@ -22,8 +22,8 @@ Generated master list of Store Releases in this registry.
 | `OGS-00015` | mvp-phs002453-eas | false | dense | reference_completed | validated | 0.3.0 | 241 | 0 | 11,650,615 | - | true | passed_with_warnings |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | 0.3.0 | 1,691 | 0 | 27,929,380 | - | true | passed_with_warnings |
 | `OGS-00017` | r13-full | false | dense | reference_completed | validated | 0.3.0 | 2,754 | 0 | 21,549,493 | - | true | passed_with_warnings |
-| `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | validated | - | 9 | 1 | - | - | - | passed |
-| `OGS-00023` | eur-hybrid-quant-pilot-10-completed | true | hybrid | reference_completed | validated | - | 10 | 0 | - | - | - | passed |
+| `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | withdrawn | - | 9 | 1 | - | - | - | passed |
+| `OGS-00023` | eur-hybrid-quant-pilot-10-completed | true | hybrid | reference_completed | withdrawn | - | 10 | 0 | - | - | - | passed |
 | `OGS-00024` | 2023-chen-full-african | false | ragged | reference_completed | validated | 0.3.0 | 1,034 | 0 | 12,703,501 | 53,236,797 | true | passed_with_warnings |
 | `OGS-00025` | 2023-chen-full-east-asian | false | ragged | reference_completed | validated | 0.3.0 | 1,038 | 0 | 2,293,885 | 8,557,552 | true | passed_with_warnings |
 | `OGS-00026` | 2023-chen-full-south-asian | false | ragged | reference_completed | validated | 0.3.0 | 971 | 0 | 2,746,673 | 8,353,513 | true | passed_with_warnings |
@@ -80,10 +80,10 @@ Generated from the LD Store Registry's records in `stores/ld/` (docs/spec/ld-sto
 | LD ID | Label | Kind | Status | Ancestry | n | k | Format | Variants | Bytes | Licence |
 |:---|:---|:---|:---|:---|---:|---:|:---|---:|---:|:---|
 | `OGL-00001` | hgdp1kgp-v2-EUR-k10 | ld_store | served | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 79,278,843,340 | to confirm |
-| `OGL-00002` | hgdp1kgp-v2-AFR-k10 | ld_store | retiring | AFR | 608 | 10 | 0.1.0 | 14,374,341 | 241,320,984,050 | to confirm |
-| `OGL-00003` | hgdp1kgp-v2-AMR-k10 | ld_store | retiring | AMR | 341 | 10 | 0.1.0 | 7,561,067 | 64,344,553,227 | to confirm |
-| `OGL-00004` | hgdp1kgp-v2-EAS-k10 | ld_store | retiring | EAS | 724 | 10 | 0.1.0 | 7,837,854 | 63,862,446,668 | to confirm |
-| `OGL-00005` | hgdp1kgp-v2-SAS-k10 | ld_store | retiring | SAS | 672 | 10 | 0.1.0 | 8,879,035 | 84,902,373,722 | to confirm |
+| `OGL-00002` | hgdp1kgp-v2-AFR-k10 | ld_store | retired | AFR | 608 | 10 | 0.1.0 | 14,374,341 | 241,320,984,050 | to confirm |
+| `OGL-00003` | hgdp1kgp-v2-AMR-k10 | ld_store | retired | AMR | 341 | 10 | 0.1.0 | 7,561,067 | 64,344,553,227 | to confirm |
+| `OGL-00004` | hgdp1kgp-v2-EAS-k10 | ld_store | retired | EAS | 724 | 10 | 0.1.0 | 7,837,854 | 63,862,446,668 | to confirm |
+| `OGL-00005` | hgdp1kgp-v2-SAS-k10 | ld_store | retired | SAS | 672 | 10 | 0.1.0 | 8,879,035 | 84,902,373,722 | to confirm |
 | `OGL-00006` | hgdp1kgp-v2-EUR-k10 (Partner Rows) | ld_store | reference | EUR | 665 | 10 | 0.2.0 | 8,586,889 | 478,327,170 | to confirm |
 | `OGL-00007` | hgdp1kgp-v2-EUR-k10 | genotype_store | built | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 1,474,533,909 | to confirm |
 | `OGL-00008` | hgdp1kgp-v2-AFR-k10 | genotype_store | built | AFR | 608 | 10 | 0.1.0 | 14,374,341 | 2,457,647,129 | to confirm |

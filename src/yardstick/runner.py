@@ -7,6 +7,10 @@ fixture build and the workers' spec files go to a scratch directory under
 `$YARDSTICK_TMPDIR`, else `$TMPDIR`, else `/data/opengwasdb/work/yardstick-tmp`
 -- never the host's `/tmp`, because everything this project writes goes under
 `/data/opengwasdb` (CONTRIBUTING, Worktrees).
+
+A workload's `ld` section (#504) is measured after the GWAS Stores the same way, one
+LD Store or Genotype Store at a time, each found through the LD Store Registry
+(`workload.resolve_ld`), and written to the same result under `ld`.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -194,11 +199,33 @@ def _store(
         error = f"{', '.join(missing())} missing; refusing to let the query path create it"
         measures = {name: {"status": "unavailable", "error": error} for name in wanted}
         return {**head, "status": "measured", "measures": measures}, []
-    remaining = lambda: deadline - _now()  # noqa: E731
-    measures: dict[str, Any] = {}
     steps = [("timed", [n for n in wanted if n != "peak_rss"])]
     if "peak_rss" in wanted:
         steps.append(("rss", ["peak_rss"]))
+
+    def refusal(mode: str) -> str | None:
+        # Before every worker: a worker never opens a Store that has lost its index.
+        if missing():
+            return f"{', '.join(missing())} missing before the {mode} worker; refusing to let the query path create it"
+        return None
+
+    measures, problems = _workers(store_path, entry, workload, steps, scratch, deadline, before, refusal=refusal)
+    return {**head, "status": "measured", "measures": measures}, problems
+
+
+def _workers(
+    store_path: Path, entry: dict[str, Any], workload: dict[str, Any], steps: list[tuple[str, list[str]]],
+    scratch: Path, deadline: float, before: dict[str, Any], *, refusal: Callable[[str], str | None] = lambda mode: None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Each step's worker in turn, each a fresh process, under the guard: the one loop GWAS and LD Stores share.
+
+    A step is a worker mode and the measures it takes; a `peak_rss` step's record is that measure.
+    `refusal(mode)`, asked before each worker, stops it and the rest with its reason. A worker that
+    fails makes its measures `unavailable` with the error and the run goes on. The Store directory
+    is compared with `before` after each worker, and a change stops the rest; the final comparison
+    runs in a `finally`, whatever a worker did, and its problems are the Store's guard violations.
+    """
+    measures: dict[str, Any] = {}
 
     def unavailable(names: list[str], error: str) -> None:
         for name in names:
@@ -207,14 +234,14 @@ def _store(
     problems: list[str] = []
     try:
         for position, (mode, names) in enumerate(steps):
-            # Before every worker: a worker never opens a Store that has lost its index, or one already disturbed.
-            if missing():
+            refused = refusal(mode)
+            if refused:
                 for _, rest in steps[position:]:
-                    unavailable(rest, f"{', '.join(missing())} missing before the {mode} worker; refusing to let the query path create it")
+                    unavailable(rest, refused)
                 break
             try:
-                record = _worker(mode, store_path, entry, workload, scratch, timeout=remaining())
-                measures.update({"peak_rss": record} if mode == "rss" else record)
+                record = _worker(mode, store_path, entry, workload, scratch, timeout=deadline - _now())
+                measures.update({"peak_rss": record} if names == ["peak_rss"] else record)
             except RuntimeError as error:
                 unavailable(names, str(error))
             disturbed = compare(before, snapshot(store_path))
@@ -224,7 +251,55 @@ def _store(
                 break
     finally:
         problems = compare(before, snapshot(store_path))
-    return {**head, "status": "measured", "measures": measures}, problems
+    return measures, problems
+
+
+def _ld_entry(target: dict[str, Any], section: dict[str, Any], clump: dict[str, Any]) -> dict[str, Any]:
+    """What an LD worker reads: the Store's registry facts, the workload's inputs, and the clump input
+    the preflight checked, with the digest the worker's own read must match."""
+    return {
+        **target, "store_id": target["ld_id"],
+        "matrix": section["matrix"], "region": section["region"], "proxies": section["proxies"],
+        "clump": {key: clump[key] for key in ("path", "analyses", "file", "sha256")}
+        | {"r2": section["clump"]["r2"], "kb": section["clump"]["kb"]},
+    }
+
+
+def _ld_store(
+    target: dict[str, Any], section: dict[str, Any], clump: dict[str, Any], scratch: Path, deadline: float
+) -> tuple[dict[str, Any], list[str]]:
+    """One LD Store or Genotype Store: its timed worker, then its peak-RSS worker (`_workers`).
+
+    Nothing opens the Store before its timed worker, so its `open` is the first. That worker
+    also says what the Store cannot answer (`ld.inapplicable`); a worker that never runs, its
+    budget spent, says nothing, and its rows are `unavailable` naming the budget.
+    """
+    head = {key: target[key] for key in ("ld_id", "kind", "label", "location")}
+    location = Path(target["location"])
+    wanted = list(workload_spec.LD_MEASURES)
+    if not location.is_dir():
+        error = f"{target['ld_id']}'s location {location} does not exist"
+        return {**head, "status": "measured", "measures": {n: {"status": "unavailable", "error": error} for n in wanted}}, []
+    steps = [("ld", [n for n in wanted if n != "peak_rss"]), ("ld_rss", ["peak_rss"])]
+    measures, problems = _workers(location, _ld_entry(target, section, clump), {"repetitions": section["repetitions"]},
+                                  steps, scratch, deadline, snapshot(location))
+    return {**head, "status": "measured", "measures": {name: measures[name] for name in wanted if name in measures}}, problems
+
+
+def _ld_inputs(section: dict[str, Any], clump: dict[str, Any]) -> dict[str, Any]:
+    """What the LD section read, so a result says it: each variant list's rule and digest, and the clump input."""
+    from yardstick.ld import variants_sha256
+
+    matrix, proxies = section["matrix"], section["proxies"]
+    return {
+        "matrix": {"chromosome": matrix["chromosome"], "seed": matrix["seed"], "count": len(matrix["variants"]),
+                   "variants_sha256": variants_sha256(matrix["variants"])},
+        "region": {"chromosome": section["region"]["chromosome"], "centre": section["region"]["centre"],
+                   "widths_bp": dict(workload_spec.LD_REGIONS)},
+        "proxies": {"r2": proxies["r2"], "kb": proxies["kb"], "seeds": proxies["seeds"],
+                    "variants_sha256": {name: variants_sha256(proxies["variants"][name]) for name in workload_spec.LD_PROXIES}},
+        "clump": {**clump, "r2": section["clump"]["r2"], "kb": section["clump"]["kb"], "score": "|z|"},
+    }
 
 
 def run(
@@ -235,7 +310,9 @@ def run(
     stores_root: Path = paths.DEFAULT_ARTIFACT_ROOT,
     workload_path: Path = workload_spec.DEFAULT_PATH,
     budget_s: float = BUDGET_S,
+    ld_root: Path = workload_spec.DEFAULT_LD_ROOT,
 ) -> dict[str, Any]:
+    section = workload.get("ld")
     own_scratch = scratch is None
     if scratch is None:
         root = scratch_root()
@@ -250,12 +327,22 @@ def run(
     deadline = start_clock + budget_s
     violations: list[dict[str, str]] = []
     try:
+        # The LD section's Stores and its clump input are resolved, and the input hashed, before anything
+        # is measured, so a workload naming an unknown ld_id, a region wider than far_bp or an input that
+        # is not the pinned one is refused whole. It is part of the run, so it counts in its time and budget.
+        ld_targets = workload_spec.resolve_ld(workload, ld_root) if section else []
+        clump = workload_spec.clump_input(workload) if section else None
         stores = []
         for entry in workload["stores"]:
             store_path = (store_paths or {}).get(entry["store_id"]) or paths.store_dir(entry["store_id"], stores_root) / "store.opengwasdb"
             record, problems = _store(entry, store_path, workload, scratch, deadline)
             stores.append(record)
             violations += [{"store_id": entry["store_id"], "problem": p} for p in problems]
+        ld_stores = []
+        for target in ld_targets:
+            record, problems = _ld_store(target, section, clump, scratch, deadline)
+            ld_stores.append(record)
+            violations += [{"store_id": target["ld_id"], "problem": p} for p in problems]
         build = None
         if workload.get("fixture_build"):
             build_dir = scratch / "fixture-build"
@@ -286,6 +373,13 @@ def run(
         }
         if build is not None:
             result["fixture_build"] = build
+        if section:
+            result["ld"] = {
+                "repetitions": section["repetitions"],
+                "ogquery": {"version": importlib.metadata.version("ogquery")},
+                "inputs": _ld_inputs(section, clump),
+                "stores": ld_stores,
+            }
         return result
     finally:
         if own_scratch:

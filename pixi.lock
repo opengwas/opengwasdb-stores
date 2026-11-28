@@ -237,14 +237,14 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#964ac1b28a3096553559d4a8565d877a884470e9
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#14d31245dfeab035c18b6e9c9c8a7d517c4b762d
       - pypi: https://files.pythonhosted.org/packages/43/50/6bd8600b4843f0a9d939e0cc0f4160f4c727bd6c69e4f7e294a1caa93db8/multidict-7.2.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/6a/bd/d91c5e39f490a49df14320f4e8c80161cfcce09f1e2cde1edd16a551abb3/frozenlist-1.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/71/43/1947f06babed6b3f1d7f38b0c767f52df66bfb2bc10b468c4a7de9eceff2/aiohappyeyeballs-2.7.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/74/dd/0cdb6a44dba7142b1fa0492dc40f65f6a2234cb0e8ccd55face99660bd1e/ogquery-0.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/85/9f/83a07b6ec0e043c050cfdd35fb0cf1b7897b91d554d6eea293740309afe7/propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/89/76/040a855eb07712f389608893ce7984d48b6908abc17c27ee10ddec646d41/ogquery-0.5.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b1/b2/c05ee2e07e80816548e993bfa9813208ba528d74f9de2dca9abc1343b74e/pgenlib-0.95.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/bc/7b/ca212cbe170ac8b96e45317ecbcf9c3c3ecf0cdec98d5b088a9c4088929b/yarl-1.25.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/da/e4/aa172eb534b7f02f1f8ff1c3213347eaf3cf218db91a727c6863c22f1035/aiohttp-3.14.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
@@ -591,14 +591,14 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
       - pypi: git+https://github.com/opengwas/og-dev-hub?rev=8464af7246e4ba027ee7dca540068f5d267cedeb#8464af7246e4ba027ee7dca540068f5d267cedeb
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#964ac1b28a3096553559d4a8565d877a884470e9
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#14d31245dfeab035c18b6e9c9c8a7d517c4b762d
       - pypi: https://files.pythonhosted.org/packages/43/50/6bd8600b4843f0a9d939e0cc0f4160f4c727bd6c69e4f7e294a1caa93db8/multidict-7.2.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/6a/bd/d91c5e39f490a49df14320f4e8c80161cfcce09f1e2cde1edd16a551abb3/frozenlist-1.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/71/43/1947f06babed6b3f1d7f38b0c767f52df66bfb2bc10b468c4a7de9eceff2/aiohappyeyeballs-2.7.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/74/dd/0cdb6a44dba7142b1fa0492dc40f65f6a2234cb0e8ccd55face99660bd1e/ogquery-0.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/85/9f/83a07b6ec0e043c050cfdd35fb0cf1b7897b91d554d6eea293740309afe7/propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/89/76/040a855eb07712f389608893ce7984d48b6908abc17c27ee10ddec646d41/ogquery-0.5.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ab/ac/8f96ba9b4cfe3e4ea201f23f4f97165862395e9331a424ed325ae37024a8/setuptools_scm-8.3.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b1/b2/c05ee2e07e80816548e993bfa9813208ba528d74f9de2dca9abc1343b74e/pgenlib-0.95.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/bc/7b/ca212cbe170ac8b96e45317ecbcf9c3c3ecf0cdec98d5b088a9c4088929b/yarl-1.25.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
@@ -1035,14 +1035,14 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#964ac1b28a3096553559d4a8565d877a884470e9
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#14d31245dfeab035c18b6e9c9c8a7d517c4b762d
       - pypi: https://files.pythonhosted.org/packages/43/50/6bd8600b4843f0a9d939e0cc0f4160f4c727bd6c69e4f7e294a1caa93db8/multidict-7.2.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/6a/bd/d91c5e39f490a49df14320f4e8c80161cfcce09f1e2cde1edd16a551abb3/frozenlist-1.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/71/43/1947f06babed6b3f1d7f38b0c767f52df66bfb2bc10b468c4a7de9eceff2/aiohappyeyeballs-2.7.1-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/74/dd/0cdb6a44dba7142b1fa0492dc40f65f6a2234cb0e8ccd55face99660bd1e/ogquery-0.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/85/9f/83a07b6ec0e043c050cfdd35fb0cf1b7897b91d554d6eea293740309afe7/propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/89/76/040a855eb07712f389608893ce7984d48b6908abc17c27ee10ddec646d41/ogquery-0.5.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b1/b2/c05ee2e07e80816548e993bfa9813208ba528d74f9de2dca9abc1343b74e/pgenlib-0.95.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/bc/7b/ca212cbe170ac8b96e45317ecbcf9c3c3ecf0cdec98d5b088a9c4088929b/yarl-1.25.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/da/e4/aa172eb534b7f02f1f8ff1c3213347eaf3cf218db91a727c6863c22f1035/aiohttp-3.14.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
@@ -6658,15 +6658,15 @@ packages:
   name: og-dev-hub
   version: 0.1.0
   requires_python: '>=3.12'
-- pypi: git+https://github.com/opengwas/opengwasdb?branch=main#964ac1b28a3096553559d4a8565d877a884470e9
+- pypi: git+https://github.com/opengwas/opengwasdb?branch=main#14d31245dfeab035c18b6e9c9c8a7d517c4b762d
   name: opengwasdb
-  version: 0.26.0
+  version: 0.27.0
   requires_dist:
   - aiohttp>=3.10
   - fsspec>=2024.12
   - numcodecs>=0.17
   - numpy>=2.0,<2.5
-  - ogquery>=0.4,<0.5
+  - ogquery>=0.5,<0.6
   - pandas>=2.0
   - pyliftover>=0.4
   - pysam>=0.22
@@ -6679,13 +6679,13 @@ packages:
   - lizard>=1.17 ; extra == 'dev'
   - lz4>=4 ; extra == 'dev'
   - mypy>=1.10 ; extra == 'dev'
-  - pgenlib>=0.90 ; extra == 'dev'
+  - ogquery[genotype]>=0.5,<0.6 ; extra == 'dev'
   - pytest-timeout>=2.3 ; extra == 'dev'
   - pytest-xdist>=3.6 ; extra == 'dev'
   - pytest>=8 ; extra == 'dev'
   - pyyaml>=6 ; extra == 'dev'
   - ruff>=0.6 ; extra == 'dev'
-  - pgenlib>=0.90 ; extra == 'ld-build'
+  - ogquery[genotype]>=0.5,<0.6 ; extra == 'ld-build'
   - lz4>=4 ; extra == 'ld-import'
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/43/50/6bd8600b4843f0a9d939e0cc0f4160f4c727bd6c69e4f7e294a1caa93db8/multidict-7.2.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
@@ -6817,10 +6817,15 @@ packages:
   version: 2.7.1
   sha256: 9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472
   requires_python: '>=3.10'
-- pypi: https://files.pythonhosted.org/packages/74/dd/0cdb6a44dba7142b1fa0492dc40f65f6a2234cb0e8ccd55face99660bd1e/ogquery-0.4.0-py3-none-any.whl
+- pypi: https://files.pythonhosted.org/packages/85/9f/83a07b6ec0e043c050cfdd35fb0cf1b7897b91d554d6eea293740309afe7/propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+  name: propcache
+  version: 0.5.4
+  sha256: 2814ecd8e818f487bee4b0f921bc4d1c176cc5fc71ac0f072d0fa67eda4ac14b
+  requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/89/76/040a855eb07712f389608893ce7984d48b6908abc17c27ee10ddec646d41/ogquery-0.5.0-py3-none-any.whl
   name: ogquery
-  version: 0.4.0
-  sha256: 859832ae5a725ca1b1c01f81cb13d8868f7412c7740ef3f97417cd427b6cb5df
+  version: 0.5.0
+  sha256: 6a42885014e2b8922f62d6bb85f5c2a02b87e0b753b566c2d256d3fd42b52e74
   requires_dist:
   - numcodecs>=0.17
   - numpy>=2.0,<2.5
@@ -6829,20 +6834,19 @@ packages:
   - fsspec>=2024.12 ; extra == 'dev'
   - hypothesis>=6 ; extra == 'dev'
   - mypy>=1.10 ; extra == 'dev'
+  - pgenlib>=0.94 ; sys_platform != 'win32' and extra == 'dev'
   - pytest>=8 ; extra == 'dev'
   - ruff>=0.6 ; extra == 'dev'
   - scipy>=1.11 ; extra == 'dev'
+  - threadpoolctl>=3.5 ; sys_platform != 'win32' and extra == 'dev'
+  - pgenlib>=0.94 ; extra == 'genotype'
+  - threadpoolctl>=3.5 ; extra == 'genotype'
   - aiohttp>=3.10 ; extra == 'http'
   - fsspec>=2024.12 ; extra == 'http'
   - hypothesis>=6 ; extra == 'test'
   - pytest>=8 ; extra == 'test'
   - scipy>=1.11 ; extra == 'test'
   requires_python: '>=3.12'
-- pypi: https://files.pythonhosted.org/packages/85/9f/83a07b6ec0e043c050cfdd35fb0cf1b7897b91d554d6eea293740309afe7/propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
-  name: propcache
-  version: 0.5.4
-  sha256: 2814ecd8e818f487bee4b0f921bc4d1c176cc5fc71ac0f072d0fa67eda4ac14b
-  requires_python: '>=3.10'
 - pypi: https://files.pythonhosted.org/packages/ab/ac/8f96ba9b4cfe3e4ea201f23f4f97165862395e9331a424ed325ae37024a8/setuptools_scm-8.3.1-py3-none-any.whl
   name: setuptools-scm
   version: 8.3.1

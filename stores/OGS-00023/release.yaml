@@ -2,7 +2,7 @@ store_id: OGS-00023
 label: eur-hybrid-quant-pilot-10-completed
 association_coverage: gwas
 access_posture: public
-status: validated
+status: withdrawn
 trial: true
 derived_from: OGS-00005
 created_at: '2026-08-18T19:00:37Z'
@@ -46,3 +46,9 @@ notes: |
   the wrong row LD. The Store files of OGS-00023 are no longer on disk, so nothing
   was rebuilt or re-completed; this note records the exposure only. Status is
   unchanged.
+
+  Withdrawn (2026-11-27, owner's decision). The Store files of OGS-00023 were lost
+  when the family-first trees under /data/opengwasdb/ were cleared on 12-14
+  September 2026, before this bundle was registered under its id (the trace is on
+  opengwas/opengwasdb-stores#510). The completion it records ran against the
+  unrepaired HGDP+1kGP EUR panel (#348). It will not be rebuilt under this id.
