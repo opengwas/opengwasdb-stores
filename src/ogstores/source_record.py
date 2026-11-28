@@ -19,12 +19,14 @@ What it reads, and what it refuses:
   published `work/analyses.tsv`: the row's `source_assembly` where the column
   is present, otherwise the build's `--source-assembly`. One assembly for
   every row is required, and it must agree with each row's
-  `source_genome_build`. A default flag alone is never a per-row record;
+  `source_genome_build`, which must be present and not blank. A default flag
+  alone is never a per-row record;
 - `reference_panel_sha256` is an explicit null when the build took no
   `--reference-panel`; a build that took one needs the owner's attested digest;
-- `indexed_subsets` are each `completion-indexed-subset-<name>.json`'s (or,
-  for a Store that is not completed, `indexed-subset-<name>.json`'s)
-  `--variant-list` and `--overflow-only`;
+- `indexed_subsets` are, for each subset `build.yaml` declares, its
+  `completion-indexed-subset-<name>.json`'s (or, for a Store that is not
+  completed, `indexed-subset-<name>.json`'s) `--variant-list` and
+  `--overflow-only`; a declared subset without its record refuses;
 - `variant_reference_sha256` and `ld_panel_digest` are the owner's attested
   values, given on the command line. A path, an mtime or a digest taken now
   does not show what the build read, so this never computes them; it records
@@ -40,16 +42,14 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import re
 import sys
-import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from ogstores import bundle as bundle_module
-from ogstores import increment, paths, run
+from ogstores import increment, paths, register, run
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 #: `source_genome_build` spellings, and the assembly each names.
@@ -100,13 +100,17 @@ def _effective_assembly(store_id: str, root: Path, default: str | None) -> str:
                 "--source-assembly, so its effective assembly is unknown"
             )
         declared = (row.get("source_genome_build") or "").strip()
-        if declared:
-            named = GENOME_BUILD_ASSEMBLIES.get(declared.lower())
-            if named != effective.lower():
-                raise SourceRecordError(
-                    f"{store_id}: row {row.get('analysis_id')!r} has effective assembly {effective!r} but "
-                    f"source_genome_build {declared!r}"
-                )
+        if not declared:
+            raise SourceRecordError(
+                f"{store_id}: row {row.get('analysis_id')!r} has a blank source_genome_build, so its effective "
+                f"assembly {effective!r} cannot be confirmed"
+            )
+        named = GENOME_BUILD_ASSEMBLIES.get(declared.lower())
+        if named != effective.lower():
+            raise SourceRecordError(
+                f"{store_id}: row {row.get('analysis_id')!r} has effective assembly {effective!r} but "
+                f"source_genome_build {declared!r}"
+            )
         assemblies.setdefault(effective, []).append(str(row.get("analysis_id")))
     if len(assemblies) != 1:
         shown = {k: v[:3] for k, v in assemblies.items()}
@@ -116,12 +120,14 @@ def _effective_assembly(store_id: str, root: Path, default: str | None) -> str:
 
 def _indexed_subsets(b: bundle_module.Bundle, root: Path) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
     prefix = COMPLETION_SUBSET_PREFIX if b.completes_own_store else BUILD_SUBSET_PREFIX
-    records = paths.records_dir(b.store_id, root=root)
+    declared = b.build.get(bundle_module.INDEXED_SUBSETS_KEY) or []
+    names = [d.get("name") for d in declared if isinstance(d, dict)]
     subsets: dict[str, dict[str, str]] = {}
     evidence: dict[str, str] = {}
-    for path in sorted(records.glob(f"{prefix}*.json")):
-        name = path.stem.removeprefix(prefix)
-        record = _record(b.store_id, path.stem, root)
+    for name in names:
+        step = f"{prefix}{name}"
+        path = paths.record_path(b.store_id, step, root=root)
+        record = _record(b.store_id, step, root)
         variant_list = _flag(record["argv"], "--variant-list")
         policy = _flag(record["argv"], "--overflow-only")
         if not variant_list or not policy:
@@ -230,14 +236,7 @@ def write_source_record(store_id: str, number: int, *, registry_root: Path | str
     record = build_source_record(store_id, number, registry_root=registry_root, **kwargs)
     b = bundle_module.load(store_id, registry_root=registry_root)
     target = increment.get(b, number).root / increment.SOURCE_RECORD_FILE
-    fd, scratch = tempfile.mkstemp(prefix=".source-record.", dir=target.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
-        os.replace(scratch, target)
-    except BaseException:
-        Path(scratch).unlink(missing_ok=True)
-        raise
+    register.write_text_atomically(json.dumps(record, indent=2, sort_keys=True) + "\n", target)
     return target
 
 

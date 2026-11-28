@@ -127,6 +127,16 @@ Collection (#284, ADR 0036):
     `opengwasdb` `5fc0766` the same fixture retained the six no-frequency rows
     and counts them `maf_rows_missing`; the assertion fails there, which is what
     #380 repinned for.
+22. **An Increment Bundle, end to end** — `IncrementEndToEndTests` (#546,
+    ADR 0045 §3) emits a bundle, makes it a validated Reference-Completed
+    Hybrid that has never held two of the fixture's Analyses, and runs
+    `generate-candidate --increment --selection <roster>` through the entry
+    point, the fake resolver being the only stand-in. Exactly the roster is
+    resolved, rendered and emitted as `increments/0001/` (one admitted, one
+    refused as `ancestry_not_eur`), the bundle and its own receipt are left as
+    they were, and the increment records the receipt's resolver settings
+    digest and version. An unknown, unready or already-held id, or a
+    `--config` other than the bundle's own, refuses and writes nothing.
 
 `EntryPointStageTests` cover the one entry point (#287): starting from the
 connector files alone, each stage in turn -- freeze, preflight, prepare,

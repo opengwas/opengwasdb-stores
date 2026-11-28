@@ -30,7 +30,7 @@ increment is staged with a copy of its bundle, held to the contract with it,
 and moved into place under the same per-id lock, as a candidate:
 
     python3 -m manifest_generation.emit OGS-00011 --increment --from <rendered increment> \\
-        --command "<step that produced it>"
+        --selection <roster.tsv> --command "<step that produced it>"
     python3 -m manifest_generation.emit OGS-00011 --increment --drop ID=REASON [--drop ...] \\
         --reason TEXT [--defect --erratum-issue ISSUE --erratum-text TEXT]
 """
@@ -111,6 +111,37 @@ class IncrementCandidate:
     drops: Sequence[Mapping[str, Any]] = ()
     erratum: Mapping[str, Any] | None = None
     created_at: str | None = None
+    #: The explicit roster its rows are reconciled to (ADR 0045 §3, #546 ruling 5): every listed id
+    #: is a row, admitted or refused at resolution, and every row is listed. Required when it adds rows.
+    selection: Sequence[str] | None = None
+    #: Where the roster was read from, and its bytes' sha256, recorded in `increment.yaml`.
+    selection_path: str | None = None
+    selection_sha256: str | None = None
+
+
+#: The column of a roster file that names each Analysis: `analysis_id`, or `accession` as #557's joiners table has it.
+SELECTION_COLUMNS: tuple[str, ...] = ("analysis_id", "accession")
+
+
+def read_selection(path: Path | str) -> tuple[str, ...]:
+    """The ids of an increment's roster file, in order; refuses a blank, duplicate or missing id column."""
+    path = Path(path)
+    try:
+        header, body = bundle.read_sidecar_rows(path)
+    except (OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
+        raise EmitError(f"selection {path} {exc}") from exc
+    column = next((c for c in SELECTION_COLUMNS if c in header), None)
+    if column is None:
+        raise EmitError(f"selection {path} names no {' or '.join(SELECTION_COLUMNS)} column")
+    ids = [row[header.index(column)].strip() for row in body]
+    if not ids:
+        raise EmitError(f"selection {path} lists no Analysis")
+    if any(not a for a in ids):
+        raise EmitError(f"selection {path} has a blank {column}")
+    duplicates = sorted({a for a in ids if ids.count(a) > 1})
+    if duplicates:
+        raise EmitError(f"selection {path} lists {duplicates} twice")
+    return tuple(ids)
 
 
 def render_yaml(document: Mapping[str, Any]) -> str:
@@ -166,6 +197,12 @@ def _increment_document(candidate: IncrementCandidate, number: int) -> dict[str,
     }
     if candidate.source_snapshot is not None:
         document["source_snapshot"] = dict(candidate.source_snapshot)
+    if candidate.selection is not None:
+        document["selection"] = {
+            "path": candidate.selection_path,
+            "sha256": candidate.selection_sha256,
+            "n": len(candidate.selection),
+        }
     if candidate.resolver is not None:
         document["resolver"] = dict(candidate.resolver)
     document.update({
@@ -185,6 +222,30 @@ def _checksums(text: str) -> dict[str, str]:
     return {r["checksum"]: r.get("analysis_id", "") for r in rows if (r.get("checksum") or "").strip()}
 
 
+def _reconcile_selection(candidate: IncrementCandidate) -> None:
+    """Every listed id is a row of the increment, admitted or refused, and every row is listed (ruling 5)."""
+    if candidate.analyses_tsv is None:
+        if candidate.selection is not None:
+            raise EmitError(f"{candidate.store_id}: a drop-only increment takes no selection; its drops are listed")
+        return
+    if candidate.selection is None:
+        raise EmitError(
+            f"{candidate.store_id}: an increment that adds rows is reconciled to an explicit selection; give one"
+        )
+    rows = list(csv.DictReader(candidate.analyses_tsv.splitlines(), delimiter="\t", quoting=csv.QUOTE_NONE))
+    ids = [r.get("analysis_id", "") for r in rows]
+    listed = set(candidate.selection)
+    extra = [a for a in ids if a not in listed]
+    missing = [a for a in candidate.selection if a not in set(ids)]
+    if extra:
+        raise EmitError(f"{candidate.store_id}: increment rows {extra[:10]} are not listed in the selection")
+    if missing:
+        raise EmitError(
+            f"{candidate.store_id}: {missing[:10]} are listed but not rows of the increment, neither admitted "
+            "nor refused at resolution"
+        )
+
+
 def emit_increment(candidate: IncrementCandidate, registry_root: Path | str) -> Path:
     """Emit `candidate` as `<registry_root>/<id>/increments/<nnnn>/` and return that path (ADR 0045 §3).
 
@@ -200,6 +261,7 @@ def emit_increment(candidate: IncrementCandidate, registry_root: Path | str) -> 
     for name in candidate.sidecars:
         if not name or name != Path(name).name or name in (".", ".."):
             raise EmitError(f"sidecar name {name!r} must be a plain file name under sidecars/")
+    _reconcile_selection(candidate)
     registry_root = Path(registry_root)
     target = registry_root / store_id
     staging_root = registry_root / STAGING_DIRNAME
@@ -207,13 +269,13 @@ def emit_increment(candidate: IncrementCandidate, registry_root: Path | str) -> 
         if target.is_symlink() or not (target / "release.yaml").is_file():
             raise EmitError(f"{store_id} has no Release Bundle at {target} to take an increment")
         loaded = bundle.load(store_id, registry_root=registry_root)
-        if loaded.status != "validated":
-            raise EmitError(
-                f"{store_id}: an increment applies to a validated bundle; its Release Status is {loaded.status!r}"
-            )
-        if not (loaded.layout == "hybrid" and loaded.completes_own_store):
-            raise EmitError(f"{store_id}: only a Reference-Completed Hybrid that completes its own Store takes one")
-        existing = increment.load(loaded)
+        ineligible = increment.eligibility_errors(loaded)
+        if ineligible:
+            raise EmitError(f"{store_id}: " + "; ".join(ineligible))
+        try:
+            existing = increment.load(loaded)
+        except increment.IncrementError as exc:
+            raise EmitError(str(exc)) from exc
         opened = [i for i in existing if i.is_open]
         if opened:
             raise EmitError(
@@ -267,7 +329,7 @@ def emit_increment(candidate: IncrementCandidate, registry_root: Path | str) -> 
 
 
 def read_rendered_increment(
-    directory: Path | str, store_id: str, commands: Sequence[str]
+    directory: Path | str, store_id: str, commands: Sequence[str], selection: Path | str | None = None,
 ) -> IncrementCandidate:
     """Read an increment another renderer wrote: `increment.yaml`'s declaration, its rows and sidecars."""
     directory = Path(directory)
@@ -299,7 +361,23 @@ def read_rendered_increment(
         drops=tuple(declaration.get("drops") or ()),
         erratum=declaration.get("erratum"),
         created_at=declaration.get("created_at"),
+        **selection_fields(selection),
     )
+
+
+def selection_fields(selection: Path | str | None) -> dict[str, Any]:
+    """The candidate fields of a roster file: its ids, path and sha256; none without one."""
+    if selection is None:
+        return {}
+    # Manifest Generation's own streaming digest; imported here so the emitter stays cheap to load.
+    from manifest_generation.candidate_workflow import sha256_file
+
+    path = Path(selection).resolve()
+    return {
+        "selection": read_selection(path),
+        "selection_path": str(path),
+        "selection_sha256": sha256_file(path),
+    }
 
 
 def read_rendered(directory: Path | str, store_id: str, commands: Sequence[str]) -> CandidateBundle:
@@ -529,6 +607,7 @@ def _emit_main(argv: Sequence[str]) -> int:
     increment_options = parser.add_argument_group("increment mode (ADR 0045)")
     increment_options.add_argument("--increment", action="store_true",
                                    help="emit an Increment Bundle into a validated bundle")
+    increment_options.add_argument("--selection", help="the roster file the rendered rows are reconciled to")
     increment_options.add_argument("--drop", dest="drops", action="append", default=[], metavar="ID=REASON",
                                    help="an Analysis to drop, with its reason (repeat for each)")
     increment_options.add_argument("--reason", help="why the increment is made")
@@ -555,7 +634,9 @@ def _emit_increment_main(args: argparse.Namespace, argv: Sequence[str]) -> int:
         if args.rendered:
             if args.drops:
                 raise EmitError("--drop is for a drop-only increment; declare drops in the rendered increment.yaml")
-            candidate = read_rendered_increment(args.rendered, args.store_id, commands)
+            if not args.selection:
+                raise EmitError("--increment --from needs --selection, the roster its rows are reconciled to")
+            candidate = read_rendered_increment(args.rendered, args.store_id, commands, args.selection)
         else:
             drops = []
             for item in args.drops:

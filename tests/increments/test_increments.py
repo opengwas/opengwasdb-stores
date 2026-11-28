@@ -153,7 +153,14 @@ SOURCE_RECORD = {
     "rsid_conflict_policy": "drop", "source_assembly": "hg38", "variant_reference_sha256": SHA_VR,
     "reference_panel_sha256": None, "ld_panel_digest": "ldpanel:" + "e" * 64,
     "indexed_subsets": {"hm3": {"variant_list_path": "/data/hm3.txt", "overflow_only": "skip"}},
-    "attested_by": "Owner Name", "evidence": {"rsid_conflict_policy": "records/build.json argv"},
+    "attested_by": "Owner Name", "evidence": {
+        "rsid_conflict_policy": "records/build.json argv --on-rsid-conflict; validation.yaml",
+        "source_assembly": "work/analyses.tsv effective assembly",
+        "variant_reference_sha256": "owner attestation",
+        "reference_panel_sha256": "build argv has no --reference-panel",
+        "ld_panel_digest": "owner attestation",
+        "indexed_subsets": {"hm3": "records/completion-indexed-subset-hm3.json argv"},
+    },
 }
 
 
@@ -207,6 +214,28 @@ def publish(bundle_root: Path, number: int, artifacts: Path) -> None:
         "manifest_sha256": sha256_file(paths.build_manifest_path(store_id, root=artifacts)),
         "exclusions_sha256": sha256_file(paths.build_manifest_sidecar_path(store_id, root=artifacts)),
     })
+    register_p = paths.record_path(store_id, "completion-register", root=artifacts)
+    register = json.loads(register_p.read_text()) if register_p.is_file() else {"step": "completion-register"}
+    register.setdefault("increments", []).append({
+        "increment": number,
+        "manifest_sha256": sha256_file(paths.build_manifest_path(store_id, root=artifacts)),
+        "exclusions_sha256": sha256_file(paths.build_manifest_sidecar_path(store_id, root=artifacts)),
+    })
+    register_p.parent.mkdir(parents=True, exist_ok=True)
+    register_p.write_text(json.dumps(register))
+
+
+def forced_rebuild(bundle_root: Path, artifacts: Path) -> None:
+    """What `--config force=1` leaves: work/ rematerialised from the bundle, a register record with no increments."""
+    materialise_work(bundle_root, artifacts)
+    register_p = paths.record_path(bundle_root.name, "completion-register", root=artifacts)
+    register_p.write_text(json.dumps({"step": "completion-register", "inputs": []}))
+
+
+def write_selection(path: Path, ids: list[str], column: str = "accession") -> Path:
+    """An explicit increment roster, in the shape of #557's joiners table."""
+    path.write_text("\n".join([f"{column}\ttrait", *(f"{a}\tTrait {a}" for a in ids)]) + "\n", encoding="utf-8")
+    return path
 
 
 class IncrementTestCase(unittest.TestCase):
@@ -501,6 +530,7 @@ def increment_candidate(**changes: Any) -> emitter.IncrementCandidate:
         "generator_version": "sha256:" + "b" * 64,
         "source_snapshot": {"inventory_snapshot_id": "fixture-snapshot-v2"},
         "require_added": ("N1",), "created_at": "2026-11-29T00:00:00Z",
+        "selection": ("N1", "R1"),
     }
     fields.update(changes)
     return emitter.IncrementCandidate(**fields)
@@ -556,10 +586,11 @@ class TestTheEmitsIncrementMode(IncrementTestCase):
             "reason": "fixture", "require_added": ["N1"],
             "source_snapshot": {"inventory_snapshot_id": "fixture-snapshot-v2"},
         }))
+        selection = write_selection(Path(self._tmp.name) / "selection.tsv", ["N1"])
         err = io.StringIO()
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
             code = emitter.main([STORE_ID, "--increment", "--from", str(rendered), "--command", "render fixture",
-                                 "--registry-root", str(self.registry)])
+                                 "--selection", str(selection), "--registry-root", str(self.registry)])
         self.assertEqual(code, 0, err.getvalue())
         accept(root / "increments" / "0001")
         publish(root, 1, self.artifacts)
@@ -583,10 +614,18 @@ class TestTheEmitsIncrementMode(IncrementTestCase):
         self.assertEqual(seen, {"A1", "A2", "X1", "N1", "R1"})
 
 
-class TestTheAttestationWriter(IncrementTestCase):
+class AttestationTestCase(IncrementTestCase):
+    """A published release's records, an open increment, and the writer's command line."""
+
     def setUp(self) -> None:
         super().setUp()
         self.root = write_hybrid_bundle(self.registry)
+        build = yaml.safe_load((self.root / "build.yaml").read_text())
+        build["indexed_subsets"] = [{
+            "name": "hm3", "resource_id": "hapmap3-hg38", "variant_list": "/data/hm3.txt",
+            "reference_assembly": "GRCh38", "checksum": "a" * 64, "options": {"overflow-only": "skip"},
+        }]
+        (self.root / "build.yaml").write_text(yaml.safe_dump(build))
         materialise_work(self.root, self.artifacts)
         write_increment(self.root)
         records = paths.records_dir(STORE_ID, root=self.artifacts)
@@ -622,6 +661,9 @@ class TestTheAttestationWriter(IncrementTestCase):
     def written(self) -> dict[str, Any]:
         return json.loads((self.root / "increments/0001" / increment.SOURCE_RECORD_FILE).read_text())
 
+
+
+class TestTheAttestationWriter(AttestationTestCase):
     def test_it_writes_the_attestation_from_the_records_and_the_owners_digests(self) -> None:
         code, err = self.run_writer(*self.ATTESTED)
         self.assertEqual(code, 0, err)
@@ -678,6 +720,187 @@ class TestTheAttestationWriter(IncrementTestCase):
         code, err = self.run_writer(*self.ATTESTED)
         self.assertEqual(code, 1)
         self.assertIn("candidate", err)
+
+
+class TestRoundTwoFindings(IncrementTestCase):
+    """Review round 2 of #546: owners, loud absence, lifecycle, sidecars, baseline after a rebuild."""
+
+    def test_a_malformed_exclusion_flag_refuses_rather_than_admits(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        text = (root / "analyses.tsv").read_text().splitlines()
+        text[1] = text[1][: text[1].rfind("\t")] + "\tyes"
+        (root / "analyses.tsv").write_text("\n".join(text) + "\n")
+        write_increment(root, rows=[], drops=[{"analysis_id": "A1", "reason": "fixture", "defect": False}])
+        errors = self.errors()
+        self.assertTrue(any(e.startswith("increments") and "exclude_from_build" in e for e in errors), errors)
+
+    def test_the_emit_refuses_by_the_contracts_own_eligibility_predicate(self) -> None:
+        write_hybrid_bundle(self.registry, layout="dense")
+        with self.assertRaises(emitter.EmitError) as raised:
+            emitter.emit_increment(increment_candidate(), self.registry)
+        self.assertIn(increment.eligibility_errors(self.load())[0], str(raised.exception))
+
+    def test_a_header_only_analyses_tsv_without_drops_refuses(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        directory = write_increment(root)
+        header = (directory / "analyses.tsv").read_text().splitlines()[0]
+        (directory / "analyses.tsv").write_text(header + "\n")
+        shutil.rmtree(directory / "sidecars")
+        self.assert_refused("analyses.tsv has no rows")
+
+    def test_ancestry_rows_with_blank_evidence_refuse(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        directory = write_increment(root)
+        (directory / "sidecars" / "ancestry.tsv").write_text("analysis_id\tassigned_ancestry\nN1\tEUR\nR1\t\n")
+        self.assert_refused("'R1' has blank ancestry evidence")
+
+    def test_a_source_record_with_empty_evidence_or_malformed_digests_refuses(self) -> None:
+        for change, fragment in (
+            ({"evidence": {}}, "evidence"),
+            ({"variant_reference_sha256": ""}, "variant_reference_sha256"),
+            ({"ld_panel_digest": ["a", "b"]}, "ld_panel_digest"),
+            ({"reference_panel_sha256": "short"}, "reference_panel_sha256"),
+        ):
+            with self.subTest(fragment=fragment):
+                shutil.rmtree(self.registry / STORE_ID, ignore_errors=True)
+                root = write_hybrid_bundle(self.registry)
+                directory = write_increment(root)
+                (directory / increment.SOURCE_RECORD_FILE).write_text(json.dumps({**SOURCE_RECORD, **change}))
+                accept(directory)
+                self.assert_refused(fragment)
+
+    def test_a_report_must_list_added_and_dropped(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        materialise_work(root, self.artifacts)
+        accept(write_increment(root))
+        for report in ({"dropped": [], "n_analyses_after": 3}, {"added": ["N1"], "n_analyses_after": 3}):
+            with self.subTest(report=report):
+                changes = amendment.increment_changes(self.load(), 1, self.artifacts, splice_report=report)
+                self.assertTrue(any("must list" in c for c in changes), changes)
+
+    def test_an_unreadable_published_declaration_refuses_the_membership_check(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        materialise_work(root, self.artifacts)
+        accept(write_increment(root))
+        publish(root, 1, self.artifacts)
+        (root / "increments/0001/increment.yaml").write_text("published: [unclosed\n")
+        changes = amendment.membership_changes(self.load(), self.artifacts)
+        self.assertTrue(any("increments/0001" in c for c in changes), changes)
+
+    def test_bundle_check_holds_increment_transitions_against_the_previous_bundle(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        materialise_work(root, self.artifacts)
+        accept(write_increment(root))
+        publish(root, 1, self.artifacts)
+        previous_registry = Path(self._tmp.name) / "previous"
+        shutil.copytree(self.registry, previous_registry)
+        previous = bundle.load(STORE_ID, registry_root=previous_registry)
+        edit_increment(root / "increments/0001", status="accepted", published=None)
+        errors = list(bundle.check(self.load(), previous_status=previous, registry_root=self.registry))
+        self.assertTrue(any("'published' to 'accepted'" in e for e in errors), errors)
+        shutil.rmtree(root / "increments/0001")
+        errors = list(bundle.check(self.load(), previous_status=previous, registry_root=self.registry))
+        self.assertTrue(any("increment 0001" in e and "removed" in e for e in errors), errors)
+
+    def test_an_added_row_needs_its_quality_check_and_exclusion_rows(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        directory = write_increment(root)
+        (directory / "sidecars" / "quality_checks.tsv").unlink()
+        self.assert_refused("sidecars/quality_checks.tsv")
+        shutil.rmtree(root / "increments")
+        directory = write_increment(root)
+        (directory / "sidecars" / "exclusions.tsv").unlink()
+        self.assert_refused("sidecars/exclusions.tsv")
+
+    def test_folded_rows_keep_increment_order_across_increments(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        accept(write_increment(root))
+        publish(root, 1, self.artifacts)
+        accept(write_increment(root, 2, rows=[row("N2")]))
+        publish(root, 2, self.artifacts)
+        self.assertEqual(self.errors(), [])
+        lines = (root / "analyses.tsv").read_text().splitlines()
+        n1 = next(i for i, line in enumerate(lines) if "\tN1\t" in line)
+        n2 = next(i for i, line in enumerate(lines) if "\tN2\t" in line)
+        lines[n1], lines[n2] = lines[n2], lines[n1]
+        (root / "analyses.tsv").write_text("\n".join(lines) + "\n")
+        self.assert_refused("after the rows of every earlier increment")
+
+    def test_source_readiness_stays_with_the_increment(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        (root / "sidecars" / "source_readiness.tsv").write_text("analysis_id\treadiness_status\nA1\tok\n")
+        directory = write_increment(root)
+        (directory / "sidecars" / "source_readiness.tsv").write_text("analysis_id\treadiness_status\nN1\tok\n")
+        accept(directory)
+        self.assertNotIn("sidecars/source_readiness.tsv", increment.fold(self.load(), 1))
+
+    def test_a_forced_rebuild_starts_the_baseline_again(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        materialise_work(root, self.artifacts)
+        accept(write_increment(root))
+        publish(root, 1, self.artifacts)
+        rows = [row("A1"), row("A2"), row("X1", excluded="no_build_eligible_rows"), row("N1"),
+                row("R1", excluded="ancestry_not_eur"), row("H1")]
+        texts = table_texts(rows)
+        write_texts(root, texts)
+        forced_rebuild(root, self.artifacts)
+        self.assertEqual(amendment.membership_changes(self.load(), self.artifacts), [])
+
+    def test_a_hand_edited_reason_on_an_excluded_row_refuses(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        materialise_work(root, self.artifacts)
+        text = (root / "analyses.tsv").read_text()
+        (root / "analyses.tsv").write_text(text.replace("excluded: no_build_eligible_rows: fixture",
+                                                        "excluded: no_build_eligible_rows: edited"))
+        changes = amendment.membership_changes(self.load(), self.artifacts)
+        self.assertTrue(any("'X1' exclusion reason changed" in c for c in changes), changes)
+
+    def test_the_selection_file_is_reconciled_exactly(self) -> None:
+        root = write_hybrid_bundle(self.registry)
+        before = sorted(p.name for p in root.rglob("*"))
+        for listed, fragment in ((["N1"], "not listed"), (["N1", "R1", "M9"], "listed but not")):
+            with self.subTest(listed=listed):
+                with self.assertRaises(emitter.EmitError) as raised:
+                    emitter.emit_increment(increment_candidate(selection=tuple(listed)), self.registry)
+                self.assertIn(fragment, str(raised.exception))
+                self.assertEqual(sorted(p.name for p in root.rglob("*")), before)
+        emitted = emitter.emit_increment(increment_candidate(selection=("N1", "R1")), self.registry)
+        document = yaml.safe_load((emitted / "increment.yaml").read_text())
+        self.assertEqual(document["selection"]["n"], 2)
+
+    def test_read_selection_takes_the_joiners_shape_and_refuses_blank_or_duplicate_ids(self) -> None:
+        path = write_selection(Path(self._tmp.name) / "joiners.tsv", ["GCST1", "GCST2"])
+        self.assertEqual(emitter.read_selection(path), ("GCST1", "GCST2"))
+        for ids in (["GCST1", "GCST1"], ["GCST1", ""]):
+            with self.subTest(ids=ids):
+                write_selection(path, ids)
+                with self.assertRaises(emitter.EmitError):
+                    emitter.read_selection(path)
+
+
+class TestTheAttestationWriterRoundTwo(AttestationTestCase):
+    """Review round 2: the register's atomic writer, and loud absence in the records."""
+
+    def test_it_writes_through_the_registers_atomic_writer(self) -> None:
+        from unittest import mock
+        from ogstores import register
+        with mock.patch.object(register, "write_text_atomically", wraps=register.write_text_atomically) as writer:
+            code, err = self.run_writer(*self.ATTESTED)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(writer.call_count, 1)
+
+    def test_a_blank_source_genome_build_refuses(self) -> None:
+        derived = paths.build_manifest_path(STORE_ID, root=self.artifacts)
+        derived.write_text(derived.read_text().replace("GRCh38", "", 1))
+        code, err = self.run_writer(*self.ATTESTED)
+        self.assertEqual(code, 1)
+        self.assertIn("blank source_genome_build", err)
+
+    def test_a_declared_indexed_subset_without_its_record_refuses(self) -> None:
+        paths.record_path(STORE_ID, "completion-indexed-subset-hm3", root=self.artifacts).unlink()
+        code, err = self.run_writer(*self.ATTESTED)
+        self.assertEqual(code, 1)
+        self.assertIn("completion-indexed-subset-hm3", err)
 
 
 if __name__ == "__main__":

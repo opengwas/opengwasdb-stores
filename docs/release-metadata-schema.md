@@ -989,11 +989,18 @@ it and folds it in (#560): its rows are appended to `analyses.tsv` (with
 becomes `exclude_from_build: true` with `inclusion_reason`
 `excluded: removed_in_increment_<nnnn>: <reason>`. `quality_checks.tsv` sets the
 drop's exclusion columns to `true` and `removed_in_increment_<nnnn>`, and
-`exclusions.tsv` gains its row. `ogstores.increment.fold` is that fold, and is
-pure. Manifest Generation writes an increment
-(`python3 -m manifest_generation.generate_candidate <id> --config … --increment --reason …`,
-or `python3 -m manifest_generation.emit <id> --increment --from <dir>` /
-`--drop ID=REASON --reason …`), never over one past `candidate`.
+`exclusions.tsv` gains its row. `source_readiness.tsv` is inventory-scoped and
+stays in the increment's directory, unfolded. `ogstores.increment.fold` is that
+fold, and is pure. Manifest Generation writes an increment, never over one past
+`candidate`:
+
+- `python3 -m manifest_generation.generate_candidate <id> --config <the bundle's own release config> --increment --reason … --selection <roster.tsv> [--require-added ID]`
+  resolves and renders exactly the roster's Analyses (an `analysis_id` or
+  `accession` column; each a ready inventory row the bundle has never held);
+- `python3 -m manifest_generation.emit <id> --increment --from <dir> --selection <roster.tsv>`
+  emits one rendered elsewhere, reconciled to the roster;
+- `python3 -m manifest_generation.emit <id> --increment --drop ID=REASON --reason …`
+  writes a drop-only one.
 
 ### `increment.yaml`
 
@@ -1006,7 +1013,8 @@ or `python3 -m manifest_generation.emit <id> --increment --from <dir>` /
 | `created_at` | Yes | When it was emitted. |
 | `generator` | When it adds rows | `commands` that produced it, in order, and the generator's `version`. |
 | `source_snapshot` | When it adds rows | The frozen Source Inventory and resolution receipt its rows came from, as in `release.yaml`. |
-| `resolver` | No | The resolver argv and settings digest its rows were resolved under. |
+| `resolver` | When generate-candidate wrote it | `argv`, `settings_digest`, `opengwasdb_version` and `opengwasdb_git_hash`, from the verified receipt's `resolver` block. |
+| `selection` | When it adds rows | The roster its rows are reconciled to: `path`, `sha256` and `n`. |
 | `require_added` | No | Ids the increment must admit; ruling 6 names GCST90132314 for OGS-00011's first. |
 | `drops` | No | Each `{analysis_id, reason, defect}`: an Analysis the bundle admits, to remove. |
 | `erratum` | When a drop has `defect: true` | `{issue, text}`: a defect removal is a Release Erratum (ADR 0005). |
@@ -1031,26 +1039,30 @@ candidate increment, from the published release's records:
 | Key | From |
 |---|---|
 | `rsid_conflict_policy` | `records/build.json` argv `--on-rsid-conflict`, equal to `validation.yaml` `observed.rsid_conflicts.policy` |
-| `source_assembly` | the effective assembly of every admitted `work/analyses.tsv` row (its `source_assembly`, else the build's `--source-assembly`), one for all, agreeing with `source_genome_build` |
+| `source_assembly` | the effective assembly of every admitted `work/analyses.tsv` row (its `source_assembly`, else the build's `--source-assembly`), one for all, agreeing with each row's `source_genome_build`, which must not be blank |
 | `variant_reference_sha256` | the owner's attested digest |
 | `reference_panel_sha256` | `null` when the build took no `--reference-panel`; otherwise the owner's attested digest |
 | `ld_panel_digest` | the owner's attested `opengwasdb ld-panel-digest` output |
-| `indexed_subsets` | each `completion-indexed-subset-<name>.json`'s `--variant-list` and `--overflow-only` |
+| `indexed_subsets` | for each subset `build.yaml` declares, its `completion-indexed-subset-<name>.json`'s `--variant-list` and `--overflow-only`; a declared subset without its record refuses |
 | `attested_by` | the owner |
-| `evidence` | for each key, the record and field it was read from, or "owner attestation" with the recorded path |
+| `evidence` | for each attested key, the record and field it was read from, or "owner attestation" with the recorded path; for `indexed_subsets`, one entry per subset. `bundle-check` refuses an empty or incomplete `evidence`, a `variant_reference_sha256` that is not a sha256, and a `reference_panel_sha256` that is neither null nor one |
 
 ### What the contract checks
 
 `bundle.check` (and so `pixi run bundle-check` and the emit) holds every
 increment to ADR 0045 §4: the declaration's keys, numbering and status; at most
-one open increment, on a validated Reference-Completed Hybrid; its rows in the
-bundle's columns, passing the bundle's Analysis and Quality Check rules, with
-ids new to the bundle and every earlier increment (a replace or re-admission is
-refused for now); ancestry evidence for every row when the bundle carries
-`sidecars/ancestry.tsv`; drops of admitted Analyses only; `require_added`
+one open increment, on a validated Reference-Completed Hybrid; with the previous
+bundle given, a legal transition for each increment and none removed; at least
+one row in its `analyses.tsv`, in the bundle's columns, passing the bundle's
+Analysis and Quality Check rules, with strictly read `exclude_from_build` flags
+and ids new to the bundle and every earlier increment (a replace or re-admission
+is refused for now); its own `quality_checks.tsv` and `exclusions.tsv` where the
+bundle carries them; non-blank ancestry evidence for every row when the bundle
+carries `sidecars/ancestry.tsv`; drops of admitted Analyses only; `require_added`
 admitted; the acceptance bound to its ids and bytes; an attested
 `source-record.json` from `accepted` on; and, once published, its rows folded
-into `analyses.tsv` in its order and its drops excluded.
+into `analyses.tsv` in its order, after every earlier increment's rows, and its
+drops excluded.
 
 ### The Validation Record of an incremented release
 
@@ -1064,9 +1076,11 @@ changes, `accepted_warnings`, `steps` (each `{step, record, elapsed_s}`),
 `elapsed_s`, the splice's phase timings, `manifest_sha256`,
 `exclusions_sha256`, `archive` and `published_at`. `observed.release_id` is the
 new release's, and `observed.build_elapsed_s` is the sum of that release's own
-steps, not a cumulative total. The membership check
-(`amendment.membership_changes`) holds the published `work/` files to the last
-published increment's recorded sha256.
+steps, not a cumulative total. The register record carries the same
+`increments` list. The membership check (`amendment.membership_changes`) holds
+the published `work/` files to that list's last entry while the lineage is live,
+and compares excluded Analyses with their reasons; a forced rebuild's register
+record carries no `increments`, and the baseline starts again from it.
 
 ## `summary.yaml`
 

@@ -127,7 +127,8 @@ def load_resource_declaration(
     return document
 
 
-def _sha256_file(path: Path) -> str:
+def sha256_file(path: Path) -> str:
+    """The sha256 of a file's bytes, read in 1 MiB blocks: the registry's one streaming file digest."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -203,7 +204,7 @@ def verify_variant_list_resource(
             f"records checksums.alid_sha256 {expected_sha256!r}"
         )
 
-    actual_sha256 = _sha256_file(declaration.variant_list)
+    actual_sha256 = sha256_file(declaration.variant_list)
     if actual_sha256 != expected_sha256.lower():
         raise ReferenceResourceError(
             f"Indexed Variant Subset {declaration.name!r}: {declaration.variant_list} "
@@ -398,7 +399,7 @@ def verify_column_map(loaded: bundle_module.Bundle) -> Path | None:
             f"{bundle_module.column_map_path(binding.file)}, which the bundle does not carry "
             "as a regular file"
         )
-    actual = _sha256_file(path)
+    actual = sha256_file(path)
     if actual != binding.sha256:
         raise ColumnMapChecksumError(
             f"Release {loaded.store_id}: Column Map {binding.name!r} "
@@ -425,7 +426,7 @@ def verify_staged_column_map(
     staged = paths.column_map_path(loaded.store_id, binding.file, root=artifact_root)
     if staged not in {Path(item) for item in inputs}:
         return
-    actual = _sha256_file(staged) if staged.is_file() and not staged.is_symlink() else None
+    actual = sha256_file(staged) if staged.is_file() and not staged.is_symlink() else None
     if actual != binding.sha256:
         raise ColumnMapChecksumError(
             f"Release {loaded.store_id}: the staged Column Map {binding.name!r} ({staged}) "
@@ -465,7 +466,7 @@ def _stage_file(
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(f".{destination.name}.partial")
     temporary.write_bytes(source.read_bytes())
-    if _sha256_file(temporary) != expected or _sha256_file(source) != expected:
+    if sha256_file(temporary) != expected or sha256_file(source) != expected:
         temporary.unlink()
         raise refusal()
     temporary.replace(destination)
@@ -485,7 +486,7 @@ def stage_column_map(loaded: bundle_module.Bundle, destination: Path | str) -> P
     return _stage_file(
         source,
         destination,
-        expected=binding.sha256 if binding is not None else _sha256_file(source),
+        expected=binding.sha256 if binding is not None else sha256_file(source),
         refusal=lambda: ColumnMapChecksumError(
             f"Release {loaded.store_id}: Column Map {source} changed while it was staged"
         ),
@@ -512,7 +513,7 @@ def stage_regions_table(loaded: bundle_module.Bundle, destination: Path | str) -
     return _stage_file(
         source,
         destination,
-        expected=_sha256_file(source),
+        expected=sha256_file(source),
         refusal=lambda: ReferenceResourceError(
             f"Release {loaded.store_id}: {source} changed while it was staged to {destination}"
         ),
@@ -618,6 +619,7 @@ __all__ = [
     "probe_opengwasdb_observed_view_capability",
     "probe_opengwasdb_regions_capability",
     "probe_opengwasdb_subset_capability",
+    "sha256_file",
     "stage_column_map",
     "stage_regions_table",
     "staged_regions_is_current",

@@ -67,7 +67,6 @@ tolerates the same pair (`plan.planned_before_admission_record`).
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import shutil
 import tempfile
@@ -77,7 +76,7 @@ from typing import Any
 
 from ogstores import bundle as bundle_module
 from ogstores import increment as increment_module
-from ogstores import manifest, paths, run
+from ogstores import manifest, paths, resources, run
 from ogstores.bundle import Bundle
 from ogstores.plan import (
     ASSOCIATION_COVERAGE_FLAG,
@@ -320,6 +319,11 @@ def _manifest_rows(path: Path) -> tuple[list[str], dict[str, dict[str, str]]]:
 
 
 def _excluded(sidecar: Path) -> set[str]:
+    """The Analyses an exclusion audit sidecar drops; see `_exclusion_reasons`."""
+    return set(_exclusion_reasons(sidecar))
+
+
+def _exclusion_reasons(sidecar: Path) -> dict[str, str]:
     """The Analyses an exclusion audit sidecar drops; a ValueError, naming it, if it cannot say.
 
     A missing or unreadable sidecar is not "no exclusions": read as that, the
@@ -336,7 +340,7 @@ def _excluded(sidecar: Path) -> set[str]:
         isinstance(entry, dict) and isinstance(entry.get("analysis_id"), str) for entry in dropped
     ):
         raise ValueError(f"the exclusion audit sidecar {sidecar} does not list its dropped Analyses by `analysis_id`")
-    return {entry["analysis_id"] for entry in dropped}
+    return {entry["analysis_id"]: str(entry.get("inclusion_reason") or "") for entry in dropped}
 
 
 #: What every membership refusal says a change under the same id must be (ADR 0045).
@@ -346,31 +350,63 @@ INCREMENT_POINTER: str = (
 )
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _publishing_register(b: Bundle, root: Path) -> dict[str, Any] | None:
+    """The register record of the release's last published phase, or None when none has published."""
+    latest = None
+    for register_step in REGISTER_STEPS.values():
+        record = _read_record(paths.record_path(b.store_id, register_step, root=root))
+        if record is not None:
+            latest = record
+    return latest
 
 
-def _recorded_work_files(b: Bundle, manifest_p: Path, sidecar_p: Path) -> list[str]:
-    """The `work/` files must be the ones the last published increment recorded (ADR 0045 §5).
+def _recorded_work_files(b: Bundle, root: Path, manifest_p: Path, sidecar_p: Path) -> list[str]:
+    """The `work/` files must be the ones the last increment publication recorded (ADR 0045 §5).
 
     The increment route rewrites both files at publication and records their
-    sha256. A file no publication wrote is not a baseline, whatever it holds.
+    sha256 in the Increment Bundle's `published` block and in the register
+    record's `increments` list. The lineage is live while the published
+    phase's register record carries that list: a forced rebuild writes a
+    register record without one, and the baseline starts again from it
+    (ADR 0045 §1). An increments directory that cannot be read refuses: an
+    unreadable declaration is never an absent one.
     """
-    published = [inc for inc in increment_module.load(b) if inc.status == "published"]
-    if not published:
+    increments, problems = increment_module.scan(b)
+    if problems:
+        return [f"{b.store_id}: membership cannot be compared: {problem}" for problem in problems]
+    try:
+        register = _publishing_register(b, root)
+    except ValueError as exc:
+        return [f"{b.store_id}: membership cannot be compared: {exc}"]
+    entries = (register or {}).get("increments")
+    if not entries:
         return []
+    entry = entries[-1] if isinstance(entries, list) and isinstance(entries[-1], dict) else {}
+    published = [inc for inc in increments if inc.status == "published"]
+    if not published or entry.get("increment") != published[-1].number:
+        return [
+            f"{b.store_id}: membership: the register record's last increment is {entry.get('increment')!r}, "
+            f"but the last published Increment Bundle is "
+            f"{increment_module.directory_name(published[-1].number) if published else 'none'}"
+        ]
     last = published[-1]
     block = last.document.get("published") or {}
     name = increment_module.directory_name(last.number)
     changes: list[str] = []
     for path, key in ((manifest_p, "manifest_sha256"), (sidecar_p, "exclusions_sha256")):
+        if block.get(key) != entry.get(key):
+            changes.append(
+                f"{b.store_id}: membership: increment {name} recorded {key} {block.get(key)!r} in its "
+                f"declaration but {entry.get(key)!r} in the register record"
+            )
+            continue
         if not path.is_file():
             continue
-        actual = _sha256(path)
-        if actual != block.get(key):
+        actual = resources.sha256_file(path)
+        if actual != entry.get(key):
             changes.append(
                 f"{b.store_id}: membership: {path} is not the file increment {name} recorded "
-                f"(sha256 {actual}, recorded {block.get(key)!r}): no publication wrote it"
+                f"(sha256 {actual}, recorded {entry.get(key)!r}): no publication wrote it"
             )
     return changes
 
@@ -392,19 +428,21 @@ def _membership_changes(b: Bundle, root: Path) -> list[str]:
     published_sidecar = paths.build_manifest_sidecar_path(store_id, root=root)
     if not published.is_file():
         return [f"{store_id}: membership cannot be compared: no derived build manifest at {published}"]
-    recorded = _recorded_work_files(b, published, published_sidecar)
+    recorded = _recorded_work_files(b, root, published, published_sidecar)
     try:
-        excluded_then = _excluded(published_sidecar)
+        reasons_then = _exclusion_reasons(published_sidecar)
     except ValueError as exc:
         return [f"{store_id}: membership cannot be compared: {exc}"]
+    excluded_then = set(reasons_then)
     with tempfile.TemporaryDirectory() as scratch:
         current, current_sidecar = Path(scratch) / "analyses.tsv", Path(scratch) / "exclusions.json"
         try:
             manifest.materialise_build_manifest(b.analyses_path, current, current_sidecar)
         except manifest.ManifestError as exc:
             return [f"{store_id}: membership: {b.analyses_path} no longer makes a build manifest: {exc}"]
-        excluded_now = _excluded(current_sidecar)
-        if current.read_bytes() == published.read_bytes() and excluded_now == excluded_then:
+        reasons_now = _exclusion_reasons(current_sidecar)
+        excluded_now = set(reasons_now)
+        if current.read_bytes() == published.read_bytes() and reasons_now == reasons_then:
             return recorded
         current_columns, current_rows = _manifest_rows(current)
         published_columns, published_rows = _manifest_rows(published)
@@ -418,6 +456,10 @@ def _membership_changes(b: Bundle, root: Path) -> list[str]:
             details.append(f"analysis {analysis_id!r} changed ({', '.join(columns)})")
     details += [f"analysis {a!r} newly excluded" for a in sorted(excluded_now - excluded_then)]
     details += [f"analysis {a!r} no longer excluded" for a in sorted(excluded_then - excluded_now)]
+    details += [
+        f"analysis {a!r} exclusion reason changed" for a in sorted(excluded_then & excluded_now)
+        if reasons_then[a] != reasons_now[a]
+    ]
     if published_columns != current_columns and not details:
         details.append(f"columns {published_columns} became {current_columns}")
     if not details:
@@ -495,7 +537,10 @@ def increment_changes(
         return [f"{store_id}: membership cannot be compared: {exc}"]
     _, old_rows = _manifest_rows(published_p)
     _, inc_rows = inc.rows()
-    added = [r["analysis_id"] for r in inc_rows if r.get(manifest.EXCLUDE_COLUMN, "").strip().lower() != "true"]
+    added = [
+        r["analysis_id"] for i, r in enumerate(inc_rows)
+        if not manifest.classify_exclusion(r.get(manifest.EXCLUDE_COLUMN), i, r.get("analysis_id") or "")
+    ]
     refused = {r["analysis_id"] for r in inc_rows} - set(added)
     dropped = set(inc.drop_ids)
     expected_order = [a for a in old_rows if a not in dropped] + added
@@ -518,8 +563,12 @@ def increment_changes(
             f"{sorted(new_excluded ^ expected_excluded)}, which it does not declare"
         )
     if splice_report is not None:
-        reported_added = set(splice_report.get("added") or [])
-        reported_dropped = set(splice_report.get("dropped") or [])
+        for key in ("added", "dropped"):
+            if not isinstance(splice_report.get(key), list):
+                return [*changes, f"{store_id}: increment {name}: the splice report must list `{key}`, even empty; "
+                        f"it gives {splice_report.get(key)!r}"]
+        reported_added = set(splice_report["added"])
+        reported_dropped = set(splice_report["dropped"])
         if reported_added != set(added):
             changes.append(
                 f"{store_id}: increment {name}: the splice added {sorted(reported_added)}, "

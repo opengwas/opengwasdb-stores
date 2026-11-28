@@ -44,6 +44,26 @@ Covered by `tests/increments/test_increments.py`:
   disagree, when a row's assembly differs, when a build took a reference panel
   without its attested digest, and when the increment is no longer a candidate.
 
+- **Review round 2** (`TestRoundTwoFindings`, `TestTheAttestationWriterRoundTwo`):
+  a malformed `exclude_from_build` refuses through `manifest.classify_exclusion`;
+  the emit refuses by the contract's own `increment.eligibility_errors`; a
+  header-only `analyses.tsv`, blank ancestry evidence, an empty `evidence` and
+  malformed digests refuse; a splice report must list `added` and `dropped`; an
+  unreadable published declaration refuses the membership check; `bundle.check`
+  holds increment transitions against the previous bundle and refuses a removed
+  increment; an added row needs its `quality_checks.tsv` and `exclusions.tsv`;
+  folded rows keep increment order across increments; `source_readiness.tsv` is
+  not folded; a forced rebuild restarts the baseline; a hand-edited exclusion
+  reason refuses; the roster is reconciled exactly and read strictly; the
+  attestation writer writes through `register.write_text_atomically`, and
+  refuses a blank `source_genome_build` and a declared Indexed Variant Subset
+  without its record.
+
+The end-to-end run of `generate-candidate --increment` (resolve, render, emit
+through the entry point, with the fake resolver as the only stand-in) is in
+`tests/phase-b-candidate/test_phase_b_candidate.py`, `IncrementEndToEndTests`,
+where the fixture and the fake resolver live.
+
 Run alone:
 
 ```sh

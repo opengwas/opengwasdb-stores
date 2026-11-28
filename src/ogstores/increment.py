@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from ogstores import bundle as bundle_module
+from ogstores import manifest, resources
 from ogstores.bundle import Bundle
 
 INCREMENTS_DIRNAME: str = "increments"
@@ -69,6 +70,12 @@ NULLABLE_SOURCE_RECORD_KEYS: frozenset[str] = frozenset({"reference_panel_sha256
 
 #: The per-Analysis sidecars the contract ties to an increment's rows (`bundle._check_quality_checks`).
 ANCESTRY_SIDECAR: str = "sidecars/ancestry.tsv"
+#: Columns of a sidecar row that name the Analysis rather than give evidence about it.
+IDENTITY_COLUMNS: frozenset[str] = frozenset({"analysis_id", "source_analysis_id"})
+#: Sidecars an increment keeps to itself: inventory-scoped, not per-Analysis evidence, so never folded.
+INCREMENT_LOCAL_SIDECARS: frozenset[str] = frozenset({"source_readiness.tsv"})
+#: The attested values of `source-record.json` whose `evidence` entry must say where each came from.
+ATTESTED_VALUE_KEYS: tuple[str, ...] = tuple(k for k in SOURCE_RECORD_KEYS if k not in ("attested_by", "evidence"))
 
 _DIRECTORY_RE = re.compile(r"\d{4}")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -144,6 +151,24 @@ class Increment:
         )
 
 
+def eligibility_errors(b: Bundle, *, opening: bool = True) -> list[str]:
+    """Why `b` may not take an increment (ADR 0045 §1); empty when it may.
+
+    The one predicate the contract and the emit share. Scope always applies;
+    a validated Release Status applies to a bundle opening an increment.
+    """
+    errors: list[str] = []
+    if not (b.layout == "hybrid" and b.completes_own_store):
+        errors.append(
+            "only a Reference-Completed Hybrid that completes its own Store takes an increment (ADR 0045 §1); "
+            f"this bundle is {b.layout!r} {b.completion_state!r}"
+            + (f" derived from {b.derived_from}" if b.derived_from else "")
+        )
+    if opening and b.status != "validated":
+        errors.append(f"an increment applies to a validated bundle; its Release Status is {b.status!r}")
+    return errors
+
+
 def increments_root(b: Bundle) -> Path:
     return b.root / INCREMENTS_DIRNAME
 
@@ -174,8 +199,15 @@ def scan(b: Bundle) -> tuple[list[Increment], list[str]]:
 
 
 def load(b: Bundle) -> list[Increment]:
-    """The readable increments of `b`, in number order."""
-    return scan(b)[0]
+    """The increments of `b`, in number order; raises `IncrementError` naming any entry that is not one.
+
+    A reader never drops what it cannot read: an unreadable declaration is not
+    an absent one. `scan` returns the problems for the contract to report.
+    """
+    found, problems = scan(b)
+    if problems:
+        raise IncrementError(f"{b.store_id}: " + "; ".join(problems))
+    return found
 
 
 def get(b: Bundle, number: int) -> Increment:
@@ -183,6 +215,22 @@ def get(b: Bundle, number: int) -> Increment:
         if inc.number == number:
             return inc
     raise IncrementError(f"{b.store_id} has no readable increment {directory_name(number)}")
+
+
+def transition_errors(previous: Bundle, current: Bundle) -> list[str]:
+    """How `current`'s increments moved from `previous`'s, against the lifecycle (ADR 0045 §2, §4)."""
+    before, _ = scan(previous)
+    after = {inc.number: inc for inc in scan(current)[0]}
+    errors: list[str] = []
+    for inc in before:
+        name = directory_name(inc.number)
+        now = after.get(inc.number)
+        if now is None:
+            errors.append(f"increment {name} was removed; an increment is never deleted, it is withdrawn")
+            continue
+        if inc.status in TRANSITIONS and now.status in TRANSITIONS:
+            errors += [f"increment {name}: {e}" for e in validate_transition(inc.status, now.status)]
+    return errors
 
 
 def open_increment(b: Bundle) -> Increment | None:
@@ -221,7 +269,7 @@ def content_sha256(directory: Path | str) -> str:
             raise IncrementError(f"{root}: {relative} is a symbolic link; an increment holds only regular files")
         if not path.is_file() or relative == INCREMENT_FILE:
             continue
-        lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {relative}")
+        lines.append(f"{resources.sha256_file(path)}  {relative}")
     document = bundle_module._read_yaml(root / INCREMENT_FILE) or {}
     lines.append(f"{declaration_sha256(document)}  {INCREMENT_FILE}#declaration")
     lines.sort(key=lambda line: line.split("  ", 1)[1])
@@ -233,15 +281,11 @@ def content_sha256(directory: Path | str) -> str:
 
 
 def _read_table(path: Path) -> tuple[list[str], list[list[str]]]:
-    with path.open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.reader(handle, delimiter="\t", quoting=csv.QUOTE_NONE))
-    if not rows:
-        raise IncrementError(f"{path} is empty; it needs at least a header")
-    header, body = rows[0], rows[1:]
-    for number, r in enumerate(body, 2):
-        if len(r) != len(header):
-            raise IncrementError(f"{path} line {number} has {len(r)} fields; the header has {len(header)}")
-    return header, body
+    """`bundle.read_sidecar_rows`, its refusal naming the file."""
+    try:
+        return bundle_module.read_sidecar_rows(path)
+    except (OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
+        raise IncrementError(f"{path} {exc}") from exc
 
 
 def _lines(path: Path) -> list[str]:
@@ -251,8 +295,9 @@ def _lines(path: Path) -> list[str]:
     return text.splitlines()
 
 
-def _is_excluded(value: str | None) -> bool:
-    return (value or "").strip().lower() == "true"
+def _excluded(row: Mapping[str, str], index: int) -> bool:
+    """`manifest.classify_exclusion` of a row: a malformed flag raises, never reads as admitted."""
+    return manifest.classify_exclusion(row.get("exclude_from_build"), index, row.get("analysis_id") or "")
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +350,14 @@ def _check_declaration(b: Bundle, inc: Increment) -> list[str]:
         errors.append(f"{where}: a defect removal is a Release Erratum; `erratum` needs `issue` and `text` (ADR 0005)")
     if not inc.adds_rows and not drops:
         errors.append(f"{where}: declares no change: no analyses.tsv and no drops")
+    if inc.adds_rows:
+        try:
+            if not _read_table(inc.analyses_path)[1]:
+                errors.append(
+                    f"{where}: analyses.tsv has no rows; an increment that adds nothing carries no analyses.tsv"
+                )
+        except IncrementError as exc:
+            errors.append(f"{where}: {exc}")
     if inc.adds_rows:
         generator = doc.get("generator")
         if not isinstance(generator, Mapping) or not isinstance(generator.get("commands"), list) or not generator["commands"]:
@@ -383,6 +436,43 @@ def _check_source_record(inc: Increment) -> list[str]:
             errors.append(f"{where}: {SOURCE_RECORD_FILE} {key!r} is null; only reference_panel_sha256 may be")
     if not isinstance(record.get("attested_by"), str) or not record["attested_by"].strip():
         errors.append(f"{where}: {SOURCE_RECORD_FILE} names no `attested_by`: an unattested fact is not a pin")
+    for key in ("rsid_conflict_policy", "source_assembly", "ld_panel_digest"):
+        if key in record and (not isinstance(record[key], str) or not record[key].strip()):
+            errors.append(f"{where}: {SOURCE_RECORD_FILE} {key!r} must be a non-empty string, not {record[key]!r}")
+    value = record.get("variant_reference_sha256")
+    if "variant_reference_sha256" in record and not (isinstance(value, str) and _SHA256_RE.fullmatch(value)):
+        errors.append(f"{where}: {SOURCE_RECORD_FILE} 'variant_reference_sha256' {value!r} is not a sha256")
+    value = record.get("reference_panel_sha256")
+    if value is not None and not (isinstance(value, str) and _SHA256_RE.fullmatch(value)):
+        errors.append(
+            f"{where}: {SOURCE_RECORD_FILE} 'reference_panel_sha256' {value!r} is neither null nor a sha256"
+        )
+    subsets = record.get("indexed_subsets")
+    if "indexed_subsets" in record and not (
+        isinstance(subsets, Mapping)
+        and all(
+            isinstance(v, Mapping)
+            and all(isinstance(v.get(k), str) and v[k].strip() for k in ("variant_list_path", "overflow_only"))
+            for v in subsets.values()
+        )
+    ):
+        errors.append(
+            f"{where}: {SOURCE_RECORD_FILE} 'indexed_subsets' must map each name to its variant_list_path "
+            "and overflow_only"
+        )
+    evidence = record.get("evidence")
+    if "evidence" in record:
+        if not isinstance(evidence, Mapping) or not evidence:
+            errors.append(f"{where}: {SOURCE_RECORD_FILE} 'evidence' must say where each attested value came from")
+        else:
+            for key in ATTESTED_VALUE_KEYS:
+                said = evidence.get(key)
+                if key == "indexed_subsets" and isinstance(said, Mapping) and isinstance(subsets, Mapping):
+                    missing = [n for n in subsets if not (isinstance(said.get(n), str) and said[n].strip())]
+                    if missing:
+                        errors.append(f"{where}: {SOURCE_RECORD_FILE} 'evidence' gives none for subsets {missing}")
+                elif not (isinstance(said, str) and said.strip()):
+                    errors.append(f"{where}: {SOURCE_RECORD_FILE} 'evidence' gives none for {key!r}")
     return errors
 
 
@@ -393,7 +483,7 @@ def _check_sidecars(b: Bundle, inc: Increment, ids: list[str]) -> list[str]:
     if sidecars.exists():
         for path in sorted(sidecars.iterdir()):
             relative = f"{SIDECARS_DIRNAME}/{path.name}"
-            if path.suffix != ".tsv":
+            if path.suffix != ".tsv" or path.name in INCREMENT_LOCAL_SIDECARS:
                 continue
             bundle_path = b.root / relative
             if not bundle_path.is_file():
@@ -418,7 +508,37 @@ def _check_sidecars(b: Bundle, inc: Increment, ids: list[str]) -> list[str]:
                 return [*errors, f"{where}: {exc}"]
             if "analysis_id" in header:
                 present = {r[header.index("analysis_id")] for r in body}
+                for r in body:
+                    evidence = [v for c, v in zip(header, r) if c not in IDENTITY_COLUMNS]
+                    if not any(v.strip() for v in evidence):
+                        errors.append(
+                            f"{where}: {r[header.index('analysis_id')]!r} has blank ancestry evidence in "
+                            f"{ANCESTRY_SIDECAR}"
+                        )
         errors += [f"{where}: no ancestry evidence for {a!r} in {ANCESTRY_SIDECAR}" for a in ids if a not in present]
+    return errors
+
+
+def _check_tied_sidecars(b: Bundle, inc: Increment, ids: list[str], refused: list[str]) -> list[str]:
+    """Rows the contract ties to `analyses.tsv` must be in the increment when the bundle carries them.
+
+    `bundle._check_quality_checks` judges a quality-checks table that is
+    present, and treats an absent one as valid; an increment whose bundle
+    carries one must carry its own, or its added rows would fold without them.
+    """
+    where = f"increment {directory_name(inc.number)}"
+    errors: list[str] = []
+    if ids and (b.root / bundle_module.QUALITY_CHECKS_SIDECAR).is_file() and not (
+        inc.root / bundle_module.QUALITY_CHECKS_SIDECAR
+    ).is_file():
+        errors.append(f"{where}: the bundle carries {bundle_module.QUALITY_CHECKS_SIDECAR}, so its rows need one too")
+    if refused and (b.root / bundle_module.EXCLUSIONS_SIDECAR).is_file() and not (
+        inc.root / bundle_module.EXCLUSIONS_SIDECAR
+    ).is_file():
+        errors.append(
+            f"{where}: the bundle carries {bundle_module.EXCLUSIONS_SIDECAR}, so its refused rows "
+            f"{refused[:5]} need one too"
+        )
     return errors
 
 
@@ -436,7 +556,7 @@ def _check_rows(b: Bundle, inc: Increment, bundle_header: list[str], registered:
     if header != bundle_header:
         errors.append(f"{where}: analyses.tsv columns are not the bundle's columns in the bundle's order")
     ids = [r.get("analysis_id", "") for r in rows]
-    admitted = {r.get("analysis_id", "") for r in rows if not _is_excluded(r.get("exclude_from_build"))}
+    admitted = {r.get("analysis_id", "") for i, r in enumerate(rows) if not _excluded(r, i)}
     duplicates = sorted({a for a in ids if ids.count(a) > 1})
     errors += [f"{where}: analysis_id {a!r} appears twice" for a in duplicates]
     if inc.status != "published":
@@ -445,8 +565,8 @@ def _check_rows(b: Bundle, inc: Increment, bundle_header: list[str], registered:
             "supported yet (ADR 0045 §2)"
             for a in ids if a in registered
         ]
-    for r in rows:
-        if _is_excluded(r.get("exclude_from_build")) and not (r.get("inclusion_reason") or "").strip():
+    for i, r in enumerate(rows):
+        if _excluded(r, i) and not (r.get("inclusion_reason") or "").strip():
             errors.append(f"{where}: refused row {r.get('analysis_id')!r} has no inclusion_reason")
     sub = inc.as_bundle(b)
     row_errors, _ = bundle_module._check_analyses(sub, bundle_module._analyses_reader(sub))
@@ -472,14 +592,18 @@ def _check_drops(inc: Increment, ids: list[str], admitted_in_bundle: set[str]) -
 
 
 def _check_folded(b: Bundle, inc: Increment, bundle_rows: dict[str, list[dict[str, str]]],
-                  bundle_order: list[str], later_drops: dict[str, int]) -> list[str]:
-    """A published increment's rows are in the bundle, as declared, and its drops are excluded."""
+                  bundle_order: list[str], later_drops: dict[str, int]) -> tuple[list[str], list[int]]:
+    """A published increment's rows are in the bundle, as declared, and its drops are excluded.
+
+    Returns the errors and the positions its rows hold in `analyses.tsv`, which
+    the caller holds to increment order across increments.
+    """
     where = f"increment {directory_name(inc.number)}"
     errors: list[str] = []
     try:
         _, rows = inc.rows()
     except IncrementError as exc:
-        return [f"{where}: {exc}"]
+        return [f"{where}: {exc}"], []
     positions: list[int] = []
     for r in rows:
         analysis_id = r.get("analysis_id", "")
@@ -503,9 +627,9 @@ def _check_folded(b: Bundle, inc: Increment, bundle_rows: dict[str, list[dict[st
         analysis_id = drop.get("analysis_id")
         found = bundle_rows.get(str(analysis_id)) or []
         reason = removed_reason(inc.number, str(drop.get("reason")))
-        if not any(_is_excluded(f.get("exclude_from_build")) and f.get("inclusion_reason") == reason for f in found):
+        if not any(_excluded(f, 0) and f.get("inclusion_reason") == reason for f in found):
             errors.append(f"{where}: drop {analysis_id!r} is not excluded in analyses.tsv with {reason!r}")
-    return errors
+    return errors, positions
 
 
 def check(b: Bundle, registry_root: Path | str | None = None) -> list[str]:
@@ -513,14 +637,7 @@ def check(b: Bundle, registry_root: Path | str | None = None) -> list[str]:
     increments, errors = scan(b)
     if not increments and not errors:
         return []
-    if not (b.layout == "hybrid" and b.completes_own_store):
-        errors.append(
-            "only a Reference-Completed Hybrid that completes its own Store takes an increment (ADR 0045 §1); "
-            f"this bundle is {b.layout!r} {b.completion_state!r}"
-            + (f" derived from {b.derived_from}" if b.derived_from else "")
-        )
-    if b.status != "validated" and any(inc.is_open for inc in increments):
-        errors.append(f"an increment applies to a validated bundle; its Release Status is {b.status!r}")
+    errors += eligibility_errors(b, opening=any(inc.is_open for inc in increments))
     numbers = [inc.number for inc in increments]
     if numbers != list(range(1, len(numbers) + 1)):
         errors.append(f"increments are numbered from 1 with no gaps; found {[directory_name(n) for n in numbers]}")
@@ -543,7 +660,7 @@ def check(b: Bundle, registry_root: Path | str | None = None) -> list[str]:
     for r in rows:
         bundle_rows.setdefault(r.get("analysis_id", ""), []).append(r)
     order = [r.get("analysis_id", "") for r in rows]
-    admitted = {r.get("analysis_id", "") for r in rows if not _is_excluded(r.get("exclude_from_build"))}
+    admitted = {r.get("analysis_id", "") for i, r in enumerate(rows) if not _excluded(r, i)}
 
     registered = set(order)
     drop_owner: dict[str, int] = {}
@@ -552,6 +669,7 @@ def check(b: Bundle, registry_root: Path | str | None = None) -> list[str]:
             for analysis_id in inc.drop_ids:
                 drop_owner[analysis_id] = inc.number
 
+    last_position = -1
     for inc in increments:
         errors += _check_declaration(b, inc)
         # An open increment's ids must be new to the bundle and to every earlier increment.
@@ -559,15 +677,23 @@ def check(b: Bundle, registry_root: Path | str | None = None) -> list[str]:
             a for other in increments if other.number < inc.number and other.status != "withdrawn"
             for a in _safe_ids(other)
         }
-        row_errors, ids, _ = _check_rows(b, inc, header, others, admitted)
+        row_errors, ids, added = _check_rows(b, inc, header, others, admitted)
         errors += row_errors
         errors += _check_drops(inc, ids, admitted)
         errors += _check_sidecars(b, inc, ids)
+        errors += _check_tied_sidecars(b, inc, ids, [a for a in ids if a not in added])
         errors += _check_acceptance(inc, ids)
         errors += _check_source_record(inc)
         if inc.status == "published":
             later = {a: n for a, n in drop_owner.items() if n > inc.number}
-            errors += _check_folded(b, inc, bundle_rows, order, later)
+            fold_errors, positions = _check_folded(b, inc, bundle_rows, order, later)
+            errors += fold_errors
+            if positions and positions[0] <= last_position:
+                errors.append(
+                    f"increment {directory_name(inc.number)}: its rows are not in analyses.tsv after the rows "
+                    "of every earlier increment"
+                )
+            last_position = max([last_position, *positions])
     return errors
 
 
@@ -611,7 +737,7 @@ def fold(b: Bundle, number: int) -> dict[str, str]:
     rows_by_id = {line.split("\t")[id_at]: i for i, line in enumerate(lines[1:], 1)}
     admitted = {
         a for a, i in rows_by_id.items()
-        if not _is_excluded(lines[i].split("\t")[header.index("exclude_from_build")])
+        if not _excluded(dict(zip(header, lines[i].split("\t"))), i - 1)
     }
     for drop in inc.drops:
         analysis_id = str(drop.get("analysis_id"))
@@ -635,7 +761,7 @@ def fold(b: Bundle, number: int) -> dict[str, str]:
 
     drop_rows = {str(d.get("analysis_id")): d for d in inc.drops}
     sidecar_names = {
-        p.name for p in (inc.root / SIDECARS_DIRNAME).glob("*.tsv")
+        p.name for p in (inc.root / SIDECARS_DIRNAME).glob("*.tsv") if p.name not in INCREMENT_LOCAL_SIDECARS
     } if (inc.root / SIDECARS_DIRNAME).is_dir() else set()
     for relative in (bundle_module.QUALITY_CHECKS_SIDECAR, bundle_module.EXCLUSIONS_SIDECAR):
         if drop_rows and (b.root / relative).is_file():
@@ -692,6 +818,7 @@ __all__ = [
     "content_sha256",
     "declaration_sha256",
     "directory_name",
+    "eligibility_errors",
     "fold",
     "get",
     "load",
@@ -699,5 +826,6 @@ __all__ = [
     "removal_code",
     "removed_reason",
     "scan",
+    "transition_errors",
     "validate_transition",
 ]

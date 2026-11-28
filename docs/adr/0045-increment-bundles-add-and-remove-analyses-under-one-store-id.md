@@ -225,7 +225,9 @@ does this (§6). Folding changes these files and nothing else:
   bundle's. The two exclusion columns of each declared drop are set.
 - each `sidecars/*.tsv` keyed by `analysis_id`: the increment's rows are appended. Each drop's
   exclusion columns are set in `quality_checks.tsv`, and its row is appended to
-  `exclusions.tsv`. A sidecar whose header differs from the bundle's is refused;
+  `exclusions.tsv`. A sidecar whose header differs from the bundle's is refused.
+  `source_readiness.tsv` is not folded. It records an inventory snapshot's readiness and
+  duplicate groups, not evidence about one Analysis, so it stays in the increment's directory;
 - `summary.yaml`, which is regenerated;
 - `increment.yaml`, which becomes `published` with its `published` block.
 
@@ -251,19 +253,31 @@ admit one once those readers are audited.
 
 Manifest Generation's increment mode writes only `increments/<nnnn>/`.
 
-- **Selection.** `generate-candidate <id> --increment` reads the bundle's own release config
-  and a new frozen Source Inventory. Its candidates are the selected Analyses whose
-  `analysis_id` is in neither the bundle's `analyses.tsv` nor an earlier increment. Rows already
-  in the bundle, admitted or excluded, are neither resolved nor rendered again.
-- **Resolution.** Only those candidates are resolved, under the locked engine. The increment
-  records its resolver version and settings digest. Where the resolver differs from the
-  bundle's, the Validation Record's resolver-mismatch warning names both.
+- **The bundle's own release config.** `generate-candidate <id> --increment` refuses a
+  `--config` other than the one the bundle's recorded generate-candidate command names, and a
+  config whose composed resolver settings digest differs from the one the bundle's own
+  resolution receipt records. Its frozen Source Inventory may be a new snapshot. Its work files
+  go under `<work-root>/<id>/increment/`, so the bundle's receipt is never overwritten.
+- **The roster** *(ruling, review 2)*. `--selection FILE` names exactly the Analyses to add,
+  one per row, in an `analysis_id` or `accession` column, as #557's joiners table has them.
+  Each listed id must be a ready row of the frozen inventory that the bundle and its
+  increments have never held. An unknown, unready or held id refuses before anything is
+  resolved. Only the listed Analyses are resolved and rendered. Rows already in the bundle,
+  admitted or excluded, are neither resolved nor rendered again.
+- **Resolution.** The listed Analyses are resolved under the locked engine. The increment
+  records the resolver's `settings_digest`, `opengwasdb_version` and git hash, read from the
+  verified receipt's `resolver` block. Where the resolver differs from the bundle's, the
+  Validation Record's resolver-mismatch warning names both.
 - **Render.** Quality Checks, the Assigned Ancestry check and the Store Composition Rule run per
   Analysis, as for any candidate.
 - **Emit.** The increment is staged under `stores/.staging/`, held to the increment contract
   (§4) together with its bundle, and moved into `increments/<nnnn>/` as `candidate`, under the
-  emit's per-id lock. The emit refuses:
-  - a bundle that is not `validated`, or not in §1's scope;
+  emit's per-id lock. It records the roster's path, sha256 and size in `selection`. The emit
+  refuses:
+  - rows that are not exactly the roster: an unlisted row, or a listed id that is neither
+    admitted nor refused at resolution;
+  - a bundle that is not `validated`, or not in §1's scope, by the contract's own eligibility
+    predicate (`increment.eligibility_errors`);
   - a bundle with an open increment;
   - a `require_added` id that is not an admitted row;
   - a row whose `checksum` equals a bundle row's, which would be the same file under another id.
@@ -282,7 +296,9 @@ enforce it. For each `increments/<nnnn>/`:
 - **The declaration.**
   - Keys and types are valid, and `increment` equals the directory number. Numbers run from 1
     with no gaps.
-  - `status` is in the vocabulary. With a previous state given, the transition is legal.
+  - `status` is in the vocabulary. Given the previous bundle (`bundle.check(...,
+    previous_status=<Bundle>)`), each increment's transition is legal, and no increment has
+    disappeared: one is withdrawn, never deleted.
   - `acceptance` is complete, and its `content_sha256` is the increment's, from `accepted` on.
   - `reviewed_analysis_ids` equals the increment's row ids plus its drop ids.
   - `published` is set exactly when `status: published`.
@@ -291,19 +307,27 @@ enforce it. For each `increments/<nnnn>/`:
   - The bundle is in §1's scope.
 - **The rows.**
   - The increment's `analyses.tsv` has the bundle's columns, in order.
+  - It has at least one row. An increment that adds nothing carries no `analyses.tsv`.
   - It passes the bundle's Analysis checks: an admitted row must be buildable, and an excluded
-    row needs an `inclusion_reason`.
+    row needs an `inclusion_reason`. Every `exclude_from_build` is read by
+    `manifest.classify_exclusion`, so a malformed flag refuses rather than reading as admitted.
   - Its ids are unique.
   - Until the increment is published, its ids are absent from the bundle and from earlier
     increments.
   - Each `require_added` id is an admitted row.
-  - Each of its sidecars has the bundle's header, so it can fold. Its `quality_checks.tsv` and
-    `exclusions.tsv` agree with its rows as a bundle's do. When the bundle carries
-    `sidecars/ancestry.tsv`, every increment row has ancestry evidence there.
+  - Each of its folded sidecars has the bundle's header, so it can fold.
+  - When the bundle carries `quality_checks.tsv`, the increment carries one for its rows.
+    When the bundle carries `exclusions.tsv` and the increment refuses rows, it carries one for
+    them. Both agree with its rows as a bundle's do.
+  - When the bundle carries `sidecars/ancestry.tsv`, every increment row has a row there, and
+    no row's evidence is all blank.
 - **The drops.** For an open increment, each drop names an Analysis admitted in the bundle,
   with a reason. A drop of an Analysis the same increment adds refuses.
 - **The attestation.** `source-record.json` is present from `accepted` on, with every key §6
-  names and a non-empty `attested_by`.
+  names and a non-empty `attested_by`. `variant_reference_sha256` is a sha256,
+  `reference_panel_sha256` is null or a sha256, and the policy, assembly and LD-panel digest are
+  non-empty strings. `evidence` says where each attested value came from, one entry for each,
+  and one for each Indexed Variant Subset.
 - **A published increment is folded.**
   - Each of its rows appears in the bundle's `analyses.tsv`, in its order, after the rows of
     every earlier increment. Each is identical except for `analysis_index`, and except for the
@@ -313,12 +337,20 @@ enforce it. For each `increments/<nnnn>/`:
 ### 5. The amendment check: a declared increment passes, an undeclared change refuses *(this ADR; ruling, review 1)*
 
 **The published membership is still the pair of `work/` files.** Each publication rewrites
-both, from the folded bundle, and records their sha256 in the increment's `published` block. So
-the existing comparison holds for every route: ADR 0037's own-id completion, ADR 0044's
-additions and a forced run. The comparison is the derived manifest's bytes and the excluded ids.
-With published increments, `_membership_changes` adds one check: the `work/` files must have
-the sha256 the last published increment recorded. A file rewritten outside the route is
-refused, so the comparison never trusts a baseline that no publication wrote.
+both, from the folded bundle. It records their sha256 in the increment's `published` block and
+in the register record's `increments` entry. So the existing comparison holds for every route:
+ADR 0037's own-id completion, ADR 0044's additions and a forced run. The comparison is the
+derived manifest's bytes, and the excluded ids with their reasons: a hand-edited reason on an
+already-excluded row refuses as "exclusion reason changed".
+
+**While the lineage is live, the `work/` files must be the ones it recorded.** The lineage is
+live while the register record of the release's last published phase carries an `increments`
+list. Then `_membership_changes` requires the `work/` files to have the sha256 of that list's
+last entry, and that entry to match the last published Increment Bundle's `published` block. A
+file rewritten outside the route is refused, so the comparison never trusts a baseline no
+publication wrote. A forced rebuild writes a register record with no `increments`, and the
+baseline starts again from the files it materialised (§1). An `increments/` entry that cannot
+be read refuses the comparison: an unreadable declaration is never an absent one.
 
 - **An open increment passes.** It touches no file the check reads. Another route may publish
   while it is open; the parent check (§6) then refuses the stale splice.
@@ -339,8 +371,8 @@ again before the marker. It refuses unless:
 4. the folded bundle's derived files differ from the published `work/` files by exactly the
    increment's declaration. That means its admitted rows appended, its refused rows and its
    drops newly excluded, and nothing else;
-5. given the splice's report: its `added` and `dropped` equal the declared sets exactly, and its
-   `n_analyses_after` equals the folded manifest's row count.
+5. given the splice's report: it lists `added` and `dropped`, even when empty, and they equal
+   the declared sets exactly. Its `n_analyses_after` equals the folded manifest's row count.
 
 The check is a pure function of the bundle, the increment, the published `work/` files and the
 splice's report. It opens no Store (ADR 0023).
@@ -388,12 +420,19 @@ pixi run publish-increment <ID> [--increment N] [--dry-run]
      warning is attributed to added Analyses by parsing. Adding an accepted warning is a
      human edit outside the digest, made after a refused run.
 5. **The parent-release check, under the lock from here to the end of publication.** The route
-   takes the release's run lock again and finishes any pending marker. It refuses unless the
-   published Store's `release_id` and fingerprint (`info --fingerprint`) equal the staged
-   release's `lineage[-1].source_release_id` and `source_fingerprint` (`info` on the staged
-   release, ADR 0109 §9). An ADR 0044 addition published meanwhile keeps the `release_id` but
-   changes the fingerprint, so it is caught. The operator then re-runs the splice against the
-   new published release.
+   takes the release's run lock again and finishes any pending marker. It then refuses unless
+   all three of these hold:
+   - the published Store's `release_id` equals the staged release's
+     `lineage[-1].source_release_id`;
+   - the published Store's fingerprint (`info --fingerprint`) equals the staged release's
+     `source_fingerprint` (`info` on the staged release, ADR 0109 §9). An ADR 0044 addition
+     published meanwhile keeps the `release_id` but changes the fingerprint;
+   - **the published Store directory and its register record are unchanged since the splice
+     step's `start_time`**, by ADR 0043's rule. This is the registry's own check, and it covers
+     what the fingerprint does not hash: the fingerprint lists every file's size but hashes only
+     the metadata files' content, so a same-size rewrite of a data shard passes it.
+
+   The operator then re-runs the splice against the new published release.
 6. **Publication, crash-safe** *(ruling, review 1)*. The marker is written, then
    `register.complete_publication` carries it out. The marker gains:
    - the staged bundle directory, `stores/.staging/<id>.increment-<nnnn>/`: the whole folded

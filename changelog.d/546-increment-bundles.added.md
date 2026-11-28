@@ -5,8 +5,10 @@
   owner-attested `source-record.json` (`pixi run increment-source-record`).
   `bundle-check` holds every increment to the contract.
   `python3 -m manifest_generation.emit <id> --increment` and
-  `generate-candidate --increment` write one without touching any other bundle
-  file. `ogstores.increment.fold` is the fold the increment route (#560) will
+  `generate-candidate --increment --selection <roster>` write one without
+  touching any other bundle file, reconciled to an explicit roster (every
+  listed id admitted or refused at resolution, nothing else) and only under the
+  bundle's own release config and resolver settings. `ogstores.increment.fold` is the fold the increment route (#560) will
   apply at publication. The amendment check holds the published `work/` files
   to the sha256 the last published increment recorded, accepts exactly a
   declared increment (`amendment.increment_changes`), and still refuses an

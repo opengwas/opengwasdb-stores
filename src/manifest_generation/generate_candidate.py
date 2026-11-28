@@ -25,12 +25,17 @@ Stages, in order (``--stage``, default ``all``):
                 Composition Rule -- then render the bundle into the Work Root
     emit        check the rendered bundle and emit it (manifest_generation.emit)
 
-**Increment mode** (``--increment``, ADR 0045 §3). The release config is the
-bundle's own, and the frozen Source Inventory a new snapshot. Only the ready
-Analyses whose ``analysis_id`` is in neither the bundle's ``analyses.tsv`` nor
-an earlier increment are resolved and rendered; every other row is left as it
-is. ``emit`` writes them as ``stores/<id>/increments/<nnnn>/``, a candidate
-Increment Bundle, and touches no other bundle file.
+**Increment mode** (``--increment --selection <roster> --reason <text>``, ADR
+0045 §3). The release config must be the bundle's own (the ``--config`` its
+recorded command names, with the resolver settings its receipt records), and
+the frozen Source Inventory may be a new snapshot. Exactly the roster's
+Analyses are resolved and rendered: each must be a ready inventory row the
+bundle and its increments have never held. Every other row is left as it is.
+``emit`` writes them as ``stores/<id>/increments/<nnnn>/``, a candidate
+Increment Bundle reconciled to the roster (every listed id admitted or refused
+at resolution, nothing else), and touches no other bundle file. Its work files
+go under ``<work-root>/<store-id>/increment/``, so the bundle's own receipt
+stays as it was.
 
 ``all`` runs every stage. A later stage run on its own repeats the in-memory
 steps it needs (``prepare``, ``verify``, ``render``) deterministically, and
@@ -70,9 +75,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
+import shlex
 import shutil
 import sys
 from dataclasses import replace
@@ -121,7 +126,9 @@ from manifest_generation.emit import (
     IncrementCandidate,
     emit,
     emit_increment,
+    read_selection,
     render_yaml,
+    selection_fields,
 )
 from manifest_generation.inventory import freeze_release
 from manifest_generation.resolution_area import (
@@ -184,6 +191,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="emit an Increment Bundle of the unseen Analyses into the validated bundle (ADR 0045)",
     )
     parser.add_argument("--reason", help="with --increment: why the increment is made")
+    parser.add_argument("--selection", help="with --increment: the roster file of exactly the Analyses to add")
     parser.add_argument(
         "--require-added", action="append", default=[],
         help="with --increment: an id the increment must admit (repeat for each)",
@@ -199,8 +207,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if found is None or not Path(found).is_file():
             parser.error(f"--resolver {args.resolver!r} is not an executable file")
         args.resolver = str(Path(found).resolve())
-    if args.increment and not args.reason:
-        parser.error("--increment needs --reason")
+    if args.increment and not (args.reason and args.selection):
+        parser.error("--increment needs --reason and --selection")
     if args.resume:
         parser.error(
             "--resume is no longer an option: reuse is automatic (#284). Every run reuses "
@@ -226,6 +234,9 @@ class Pipeline:
         )
         self.work_root = Path(args.work_root) if args.work_root else self.config.base.work_root
         self.run_root = self.work_root / self.store_id
+        if args.increment:
+            # An increment's run keeps its own receipt and reports, beside the bundle's (ADR 0045 §3).
+            self.run_root = self.run_root / "increment"
         resolver_root = self.run_root / "resolver"
         self.resolver_manifest_path = resolver_root / "analyses.tsv"
         self.resolver_log_path = resolver_root / "resolve.log"
@@ -305,27 +316,89 @@ def stage_preflight(pipeline: Pipeline) -> dict:
 def registered_analysis_ids(b: bundle_module.Bundle) -> set[str]:
     """Every id the bundle already holds, admitted or not, and every id an increment declares.
 
-    An increment emits only Analyses outside this set (ADR 0045 §3). A
+    An increment may add only Analyses outside this set (ADR 0045 §3). A
     withdrawn increment's ids are free again.
     """
-    with b.analyses_path.open(newline="", encoding="utf-8") as handle:
-        ids = {row.get("analysis_id", "") for row in csv.DictReader(handle, delimiter="\t", quoting=csv.QUOTE_NONE)}
-    for inc in increment_module.load(b):
+    admitted, excluded = bundle_module.membership_ids(b)
+    ids = {*admitted, *excluded}
+    try:
+        increments = increment_module.load(b)
+    except increment_module.IncrementError as exc:
+        raise CandidateError(str(exc)) from exc
+    for inc in increments:
         if inc.status != "withdrawn":
             ids |= {row.get("analysis_id", "") for row in inc.rows()[1]}
     return ids
 
 
-def increment_selection(pipeline: Pipeline, manifest: list) -> list:
-    """The resolver manifest's rows the bundle has never seen (ADR 0045 §3)."""
-    seen = registered_analysis_ids(bundle_module.load(pipeline.store_id, registry_root=pipeline.registry_root))
-    unseen = [row for row in manifest if row.analysis_id not in seen]
-    if not unseen:
+def _recorded_config(b: bundle_module.Bundle) -> str | None:
+    """The `--config` of the generate-candidate command the bundle's release.yaml records."""
+    commands = (b.release.get("generator") or {}).get("commands") or []
+    for command in commands:
+        tokens = shlex.split(str(command))
+        if MODULE not in tokens:
+            continue
+        for index, token in enumerate(tokens):
+            if token == "--config" and index + 1 < len(tokens):
+                return tokens[index + 1]
+            if token.startswith("--config="):
+                return token.split("=", 1)[1]
+    return None
+
+
+def require_bundle_release_config(pipeline: Pipeline) -> None:
+    """An increment runs under its bundle's own release config and resolver settings (ADR 0045 §3)."""
+    b = bundle_module.load(pipeline.store_id, registry_root=pipeline.registry_root)
+    ineligible = increment_module.eligibility_errors(b)
+    if ineligible:
+        raise CandidateError(f"{pipeline.store_id}: " + "; ".join(ineligible))
+    recorded = _recorded_config(b)
+    if recorded is None:
         raise CandidateError(
-            f"{pipeline.store_id}: every ready Analysis of the inventory is already in the bundle or an "
-            "increment; there is nothing to add"
+            f"{pipeline.store_id}: release.yaml records no generate-candidate --config, so the bundle's own "
+            "release config cannot be confirmed"
         )
-    return unseen
+    recorded_path = Path(recorded) if Path(recorded).is_absolute() else pipeline.repo_root / recorded
+    if recorded_path.resolve() != pipeline._config_path().resolve():
+        raise CandidateError(
+            f"{pipeline.store_id}: --config {pipeline.args.config} is not the bundle's own release config, "
+            f"{recorded}; an increment runs under the config its bundle was emitted with"
+        )
+    receipt_path = ((b.release.get("source_snapshot") or {}) or {}).get("resolver_receipt")
+    if not receipt_path:
+        raise CandidateError(f"{pipeline.store_id}: release.yaml records no resolver receipt to compare settings with")
+    bundle_receipt = read_resolution_receipt(Path(receipt_path))
+    recorded_digest = (bundle_receipt.get("resolver") or {}).get("settings_digest")
+    current_digest = resolver_settings_digest(
+        resolver_settings(pipeline.config),
+        declared_checksums=declared_setting_checksums(pipeline.config),
+    )
+    if recorded_digest != current_digest:
+        raise CandidateError(
+            f"{pipeline.store_id}: the release config's resolver settings ({current_digest}) are not the ones "
+            f"the bundle was resolved under ({recorded_digest!r}); a new setting is a new Store id (ADR 0045 §1)"
+        )
+
+
+def increment_selection(pipeline: Pipeline, rows: list, manifest: list) -> list:
+    """Exactly the roster's resolver rows (ADR 0045 §3, #546 ruling 5); refuses an unknown, unready or held id."""
+    listed = read_selection(pipeline.args.selection)
+    inventory = {row.analysis_id: row for row in rows}
+    seen = registered_analysis_ids(bundle_module.load(pipeline.store_id, registry_root=pipeline.registry_root))
+    unknown = [a for a in listed if a not in inventory]
+    unready = [a for a in listed if a in inventory and not inventory[a].ready]
+    held = [a for a in listed if a in seen]
+    problems = []
+    if unknown:
+        problems.append(f"not in the frozen Source Inventory: {unknown[:10]}")
+    if unready:
+        problems.append(f"not ready in it: {unready[:10]}")
+    if held:
+        problems.append(f"already in the bundle or an increment: {held[:10]}")
+    if problems:
+        raise CandidateError(f"{pipeline.store_id}: the selection lists Analyses " + "; ".join(problems))
+    wanted = set(listed)
+    return [row for row in manifest if row.analysis_id in wanted]
 
 
 def stage_prepare(pipeline: Pipeline) -> tuple[list, dict]:
@@ -334,7 +407,7 @@ def stage_prepare(pipeline: Pipeline) -> tuple[list, dict]:
     metadata = read_analysis_metadata(pipeline.provenance_path, ready_ids)
     manifest = derive_resolver_manifest(rows, pipeline.config, metadata)
     if pipeline.args.increment:
-        manifest = increment_selection(pipeline, manifest)
+        manifest = increment_selection(pipeline, rows, manifest)
     pipeline.resolver_manifest_path.parent.mkdir(parents=True, exist_ok=True)
     pipeline.resolver_manifest_path.write_text(
         render_resolver_manifest(manifest), encoding="utf-8"
@@ -594,6 +667,12 @@ def stage_render(
     # Only a release with targeted Analyses carries the target sidecar (#300).
     } | ({"analysis_targets.tsv": tables.analysis_targets_tsv} if tables.analysis_targets_tsv else {})
     if pipeline.args.increment:
+        verified = read_resolution_receipt(pipeline.receipt_path)
+        resolver_block = verified.get("resolver") if isinstance(verified.get("resolver"), dict) else {}
+        if not resolver_block.get("settings_digest") or not resolver_block.get("opengwasdb_version"):
+            raise CandidateError(
+                f"{pipeline.receipt_path} records no resolver settings_digest or opengwasdb_version"
+            )
         increment_candidate = IncrementCandidate(
             store_id=pipeline.store_id,
             reason=pipeline.args.reason,
@@ -609,14 +688,17 @@ def stage_render(
                 "resolver_receipt_sha256": receipt_sha256,
             },
             resolver={
-                "argv": (receipt or {}).get("resolver", {}).get("argv") if isinstance(receipt, dict) else None,
-                "settings_digest": (receipt or {}).get("settings_digest") if isinstance(receipt, dict) else None,
+                "argv": resolver_block.get("argv"),
+                "settings_digest": resolver_block["settings_digest"],
+                "opengwasdb_version": resolver_block["opengwasdb_version"],
+                "opengwasdb_git_hash": resolver_block.get("opengwasdb_git_hash"),
             },
             require_added=tuple(pipeline.args.require_added),
             created_at=created_at,
+            **selection_fields(pipeline.args.selection),
         )
-        write_rendered_increment(increment_candidate, pipeline.run_root / "increment")
-        print(f"Rendered increment: {pipeline.run_root / 'increment'}")
+        write_rendered_increment(increment_candidate, pipeline.rendered_path)
+        print(f"Rendered increment: {pipeline.rendered_path}")
         return increment_candidate, tables
 
     candidate = CandidateBundle(
@@ -736,6 +818,8 @@ def run(pipeline: Pipeline) -> Path | None:
     """Run ``--stage`` (or every stage), repeating only the in-memory steps a later stage needs."""
     stage = pipeline.args.stage
     every = stage == "all"
+    if pipeline.args.increment:
+        require_bundle_release_config(pipeline)
     if every or stage == "freeze":
         stage_freeze(pipeline)
     if every or stage == "preflight":

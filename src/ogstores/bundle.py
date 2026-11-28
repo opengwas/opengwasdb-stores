@@ -1750,8 +1750,12 @@ def _analyses_reader(bundle: Bundle) -> Callable[[], opengwasdb_analyses.Analyse
     return read
 
 
-def _read_sidecar_rows(path: Path) -> tuple[list[str], list[list[str]]]:
-    """Header and rows of a strict TSV sidecar, or raise ``ValueError``."""
+def read_sidecar_rows(path: Path) -> tuple[list[str], list[list[str]]]:
+    """Header and rows of a strict TSV sidecar, or raise ``ValueError``.
+
+    The one strict TSV reader of the contract; `ogstores.increment` reads an
+    increment's tables through it too (ADR 0045).
+    """
     with path.open(newline="", encoding="utf-8") as fh:
         rows = list(csv.reader(fh, delimiter="\t", quoting=csv.QUOTE_NONE))
     if not rows:
@@ -1786,7 +1790,7 @@ def _exclusion_reasons(bundle: Bundle) -> dict[str, str] | None:
     path = bundle.root / EXCLUSIONS_SIDECAR
     if not path.is_file() or path.is_symlink():
         return None
-    header, body = _read_sidecar_rows(path)
+    header, body = read_sidecar_rows(path)
     if "analysis_id" not in header or "reason" not in header:
         raise ValueError(f"{EXCLUSIONS_SIDECAR} needs analysis_id and reason columns")
     id_at, reason_at = header.index("analysis_id"), header.index("reason")
@@ -1810,7 +1814,7 @@ def _check_quality_checks(
     if kind != "file":
         return [f"{QUALITY_CHECKS_SIDECAR} must be a regular file"]
     try:
-        header, body = _read_sidecar_rows(path)
+        header, body = read_sidecar_rows(path)
     except (OSError, UnicodeDecodeError, ValueError, csv.Error) as exc:
         return [f"{QUALITY_CHECKS_SIDECAR} {exc}"]
     errors = _quality_check_column_errors(header)
@@ -2183,6 +2187,15 @@ def _check_increments(bundle: Bundle, registry_root: Path | str | None) -> list[
     return increment.check(bundle, registry_root)
 
 
+def _check_increment_transitions(bundle: Bundle, previous: str | Bundle | None) -> list[str]:
+    """Each increment's status moved legally from the previous bundle's (ADR 0045 §4); only with a previous bundle."""
+    if not isinstance(previous, Bundle):
+        return []
+    from ogstores import increment
+
+    return increment.transition_errors(previous, bundle)
+
+
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -2219,6 +2232,7 @@ def check(
         (SPARSE_REGIONS_SIDECAR, lambda: (_check_sparse_regions(bundle), [])),
         ("Column Map", lambda: _check_column_map(bundle, analyses)),
         ("increments", lambda: (_check_increments(bundle, registry_root), [])),
+        ("increment transitions", lambda: (_check_increment_transitions(bundle, previous_status), [])),
     )
     for label, stage in stages:
         try:
@@ -2233,6 +2247,7 @@ def check(
 
 __all__ = [
     "ASSOCIATION_COVERAGES",
+    "read_sidecar_rows",
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
     "COLUMN_MAPS_DIR",
