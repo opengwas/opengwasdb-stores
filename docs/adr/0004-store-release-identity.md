@@ -13,3 +13,14 @@ notes carry the change as a Release Erratum, and the readiness ledger records
 that the committed bundle does not describe the published Store until the
 rebuild publishes. Like #326's and #409's in-place changes (CONTEXT.md, Store
 Release), it sets no precedent after the first release; the rule above stands.
+
+**Amended 28 November 2026 (ADR 0045, issue #546).** On the owner's ruling of
+2026-11-28 (Gibran Hemani, recorded on opengwas/opengwasdb#508), a Store id
+names a sequence of Store Releases, each identified by its `release_id`. An
+accepted Increment Bundle that adds Analyses to a Reference-Completed Hybrid,
+or removes them for a defect, is published by splicing (opengwasdb ADR 0109)
+as a new Store Release under the same id. The previous release is archived
+under `replaced/<UTC>/`, and a defect removal is also a Release Erratum
+(ADR 0005). Only that change keeps the id, and only under the conditions in
+ADR 0045 §1. Every other change to the Release Manifest or to a material Build
+Recipe choice still needs a new Store Release id, under the rule above.
