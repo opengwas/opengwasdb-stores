@@ -146,6 +146,21 @@ check_parse("GCST004296",
          "5,234 African American controls, 837 Japanese ancestry cases, 3,293 Japanese controls, ",
          "277 Hispanic cases, 3,081 Hispanic controls,197 Brazilian ancestry cases, 758 Brazilian ancestry controls."),
   17931, 115142)
+# Every decision binds to one clause (round-2 review). A bare comma or a
+# singular "control" in one clause does not change how another clause is read.
+check_parse("glycemic control after a bare comma",
+  "500 cases,1000 Genomes ancestry, 700 Europeans under glycemic control", 500, 0, 700)
+check_parse("glycemic control after a labelled bare clause",
+  "50 cases,70 controls, 100 individuals under glycemic control", 50, 70, 100)
+check_parse("1000 Genomes is not a count",
+  "50 cases,1000 Genomes participants, 200 controls", 50, 200)
+# One count per clause: repeated labels do not multiply it.
+check_parse("repeated label", "500 incident cases including recurrent cases, 700 European controls", 500, 700)
+# The repeated typo applies only to a clause with no number.
+check_parse("typo clause with a number", "100 female cases, 200 female cases female controls", 100, 200)
+# A number belongs to the label after it in its own clause.
+check_parse("number after both labels", "50 cases and unknown controls (total 100 participants)", 50, 0)
+
 # Existing shapes keep their counts.
 check_parse("simple", "10,007 cases, 474,591 controls", 10007, 474591)
 check_parse("quantitative", "1,000 European ancestry individuals", 0, 0, 1000)

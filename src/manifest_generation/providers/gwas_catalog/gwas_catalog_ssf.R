@@ -24,72 +24,129 @@ source("src/manifest_generation/providers/gwas_catalog/contract.R")
 # A "cases"/"controls" bit can carry no number of its own, because the count
 # sits earlier in the string: "181,522 European ancestry, unknown cases", or
 # "5,085 European, African, ... and South Asian ancestry cases" (an ancestry
-# list split on ", "). Its count is then the first number of the nearest
-# preceding unlabelled bit that has one, searching back only through unlabelled
-# bits (never across another cases/controls bit); that bit is consumed, so it
-# is not counted again as a sample_size (#557).
+# list split on ", ").
+#
+# Every decision binds to one clause: a count and the words that label it
+# within one comma-delimited bit. A count is claimed only by a label in its own
+# clause, or, for a numberless label, by the nearest preceding unlabelled
+# clause with nothing labelled between; that clause is consumed, so it is not
+# counted again as a sample_size (#557). What fits none of these shapes keeps
+# the reading the plain ", " split gives it; no count is invented.
 #
 # Shapes read beyond the plain one:
-# - a bit holding both labels and as many numbers ("2,853 European ancestry
-#   cases and 37,405 European ancestry controls") gives each number to the
-#   label that follows it; with one number ("2,253 Korean ancestry cases and
-#   controls") each label takes it; with none (a repeated typo, "... female
-#   cases female controls") the later label looks back for its count;
-# - "cases,44,187 ..." with no space is split after "cases"/"controls" before a
-#   count that a later label claims, and only after "cases" is a trailing
-#   singular "control" a label (GCST90301705-7).
+# - a clause with one label takes its first number, however many times the
+#   label repeats ("500 incident cases including recurrent cases");
+# - a clause with two labels gives each the nearest unclaimed number before it
+#   ("2,853 ... cases and 37,405 ... controls"); labels joined by and/or share
+#   one number ("2,253 Korean ancestry cases and controls"); labels one word
+#   apart repeat a typo ("... female cases female controls"), so only the later
+#   one counts, and takes the clause's number if it has one;
+# - "cases,44,187 ..." with no space is a clause boundary after "cases" or
+#   "controls" before a count, kept only when a label in that clause or a
+#   numberless label after it claims the count (else "cases,1000 Genomes" stays
+#   one clause); a final clause with no number that ends in the singular
+#   "control" is a label only when it claims such a clause (GCST90301705-7).
 .parse_sample_size_components <- function(x) {
   if (is.na(x)) return(NULL)
   s <- gsub(" ", " ", x, fixed = TRUE)
   s <- gsub("(\\d),(?=\\d)", "\\1", s, perl = TRUE)
-  # A bare comma after a label, before a count that a later label claims.
-  bare_comma <- grepl("\\bcases,\\d", s, perl = TRUE)
-  s <- gsub("(\\b(?:cases|controls)),(?=\\d[^,]*(?:,.*)?(?:\\b(?:cases|controls)\\b|\\bcontrol$))", "\\1, ", s, perl = TRUE)
-  bits <- unlist(strsplit(s, ",\\s+", perl = TRUE))
-  label_pattern <- if (bare_comma) "\\bcases\\b|\\bcontrols\\b|\\bcontrol$" else "\\bcases\\b|\\bcontrols\\b"
-  numbers_in <- function(bit) {
-    v <- suppressWarnings(as.numeric(strsplit(bit, " ")[[1]]))
-    v[!is.na(v)]
-  }
-  classify_case_control_label <- function(word) if (startsWith(word, "control")) "controls" else "cases"
+  base_bits <- unlist(strsplit(s, ",\\s+", perl = TRUE))
+  if (!length(base_bits)) return(NULL)
+  bare_boundary <- "(?<=\\bcases),(?=\\d)|(?<=\\bcontrols),(?=\\d)"
+  pieces <- rbindlist(lapply(base_bits, function(b) {
+    p <- strsplit(b, bare_boundary, perl = TRUE)[[1]]
+    if (!length(p)) p <- ""
+    data.table(text = p, bare = c(FALSE, rep(TRUE, length(p) - 1)))
+  }))
+  pieces[, undone := FALSE]
 
-  # One component per bit, or two for a dual-label bit with two numbers.
-  comp_bit <- integer(0); comp_label <- character(0); comp_num <- numeric(0)
-  for (i in seq_along(bits)) {
-    words <- regmatches(bits[i], gregexpr(label_pattern, bits[i], perl = TRUE))[[1]]
-    nums <- numbers_in(bits[i])
-    if (length(words) == 0) {
-      comp_bit <- c(comp_bit, i); comp_label <- c(comp_label, NA_character_)
-      comp_num <- c(comp_num, if (length(nums)) nums[1] else NA_real_)
-    } else if (length(words) >= 2 && length(nums) >= 1) {
-      # Each label takes the number that precedes it; with fewer numbers than
-      # labels ("2,253 Korean ancestry cases and controls") each takes the first.
-      for (k in seq_along(words)) {
-        comp_bit <- c(comp_bit, i); comp_label <- c(comp_label, classify_case_control_label(words[k]))
-        comp_num <- c(comp_num, if (length(nums) == length(words)) nums[k] else nums[1])
-      }
-    } else {
-      comp_bit <- c(comp_bit, i)
-      comp_label <- c(comp_label, classify_case_control_label(words[length(words)]))
-      comp_num <- c(comp_num, if (length(nums)) nums[1] else NA_real_)
-    }
+  label_word <- function(w) if (startsWith(w, "control")) "controls" else "cases"
+  # Numbers and labels of one clause, with their positions.
+  scan_clause <- function(b) {
+    tok <- gregexpr("\\S+", b, perl = TRUE)[[1]]
+    toks <- if (tok[1] == -1) character(0) else substring(b, tok, tok + attr(tok, "match.length") - 1)
+    val <- suppressWarnings(as.numeric(toks))
+    lab <- gregexpr("\\bcases\\b|\\bcontrols\\b", b, perl = TRUE)[[1]]
+    has_lab <- lab[1] != -1
+    list(
+      npos = as.integer(tok)[!is.na(val)], nval = val[!is.na(val)],
+      lpos = if (has_lab) as.integer(lab) else integer(0),
+      lend = if (has_lab) as.integer(lab) + attr(lab, "match.length") - 1L else integer(0),
+      lab = if (has_lab) vapply(substring(b, lab, lab + attr(lab, "match.length") - 1), label_word, "") else character(0)
+    )
   }
-  consumed <- rep(FALSE, length(comp_bit))
-  n <- ifelse(is.na(comp_num), 0, comp_num)
-  for (i in seq_along(comp_bit)) {
-    if (is.na(comp_label[i]) || !is.na(comp_num[i])) next
-    j <- i - 1
-    while (j >= 1 && is.na(comp_label[j])) {
-      if (!consumed[j] && !is.na(comp_num[j])) {
-        n[i] <- comp_num[j]
-        consumed[j] <- TRUE
-        break
-      }
-      j <- j - 1
+
+  # One record per component: the clause it came from, its label (NA if none)
+  # and its own number (NA if none).
+  read_clause <- function(i, b) {
+    sc <- scan_clause(b)
+    first_num <- if (length(sc$nval)) sc$nval[1] else NA_real_
+    if (!length(sc$lab)) {
+      singular <- grepl("\\bcontrol$", b, perl = TRUE) && !length(sc$nval)
+      return(data.table(clause = i, label = NA_character_, num = first_num, singular = singular))
     }
+    distinct <- unique(sc$lab)
+    if (length(distinct) == 1) {
+      return(data.table(clause = i, label = distinct, num = first_num, singular = FALSE))
+    }
+    fp <- vapply(distinct, function(l) which(sc$lab == l)[1], 1L)
+    between <- trimws(substring(b, sc$lend[fp[1]] + 1L, sc$lpos[fp[2]] - 1L))
+    if (grepl("^[[:alpha:]]+$", between) && !between %in% c("and", "or")) {
+      # Repeated typo: only the later label counts.
+      return(data.table(clause = i, label = distinct[2], num = first_num, singular = FALSE))
+    }
+    claimed <- rep(FALSE, length(sc$nval))
+    nums <- rep(NA_real_, length(distinct))
+    for (k in seq_along(distinct)) {
+      cand <- which(sc$npos < sc$lpos[fp[k]] & !claimed)
+      if (length(cand)) {
+        nums[k] <- sc$nval[max(cand)]
+        claimed[max(cand)] <- TRUE
+      } else if (k > 1 && between %in% c("and", "or", "&", "/") && !is.na(nums[k - 1])) {
+        nums[k] <- nums[k - 1]
+      }
+    }
+    data.table(clause = i, label = distinct, num = nums, singular = FALSE)
   }
-  keep <- !consumed
-  out <- data.table(n = n[keep], what = ifelse(is.na(comp_label), "sample_size", comp_label)[keep])
+
+  repeat {
+    # Clauses: the plain bits, each bare-comma piece its own clause unless undone.
+    text <- character(0); bare <- logical(0); first_piece <- integer(0)
+    for (k in seq_len(nrow(pieces))) {
+      if (pieces$bare[k] && pieces$undone[k] && length(text)) {
+        text[length(text)] <- paste0(text[length(text)], ",", pieces$text[k])
+      } else {
+        text <- c(text, pieces$text[k]); bare <- c(bare, pieces$bare[k]); first_piece <- c(first_piece, k)
+      }
+    }
+    comps <- rbindlist(lapply(seq_along(text), function(i) read_clause(i, text[i])))
+    used <- rep(FALSE, length(text))
+    labelled <- seq_along(text) %in% comps$clause[!is.na(comps$label)]
+    # Numberless labels (and singular "control") look back through unlabelled clauses.
+    for (r in seq_len(nrow(comps))) {
+      if (!(comps$singular[r] || (!is.na(comps$label[r]) && is.na(comps$num[r])))) next
+      j <- comps$clause[r] - 1L
+      while (j >= 1 && !labelled[j]) {
+        c_j <- comps[clause == j]
+        if (!used[j] && !is.na(c_j$num[1])) {
+          if (!comps$singular[r] || bare[j]) {
+            comps$num[r] <- c_j$num[1]
+            used[j] <- TRUE
+            if (comps$singular[r]) { comps$label[r] <- "controls"; labelled[comps$clause[r]] <- TRUE }
+          }
+          break
+        }
+        j <- j - 1L
+      }
+    }
+    # A bare-comma clause stays only if a label claims it.
+    unjustified <- which(bare & !labelled & !used)
+    if (!length(unjustified)) break
+    pieces[first_piece[unjustified], undone := TRUE]
+  }
+  comps <- comps[!(is.na(label) & used[clause])]
+  comps[, n := ifelse(is.na(num), 0, num)]
+  out <- comps[, .(n, what = ifelse(is.na(label), "sample_size", label))]
   if (!nrow(out)) return(NULL)
   out[order(match(what, c("cases", "controls", "sample_size")))]
 }
