@@ -1,0 +1,1 @@
+- **`backfill-observed` fills `observed.completion_state` from `opengwasdb info` when a record has none (#525, #533).** A state that disagrees with the measured one is refused, as for `format_version`. This repairs OGS-00016's `stores/OGS-00016/validation.yaml`, which carried none.

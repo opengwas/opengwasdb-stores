@@ -186,9 +186,20 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
 # The completion phase OGS-00001 plans since #514: it completes its own Store
 # (ADR 0037) rather than leaving OGS-00002 to complete it.
 COMPLETION_STEPS_00001 = ("complete", "completion-validate", "completion-observed-view-check")
-# Committed bundles that declare `post.rho: true`. OGS-00003's Dense Store
-# gets a Rho Matrix since #514; no other committed bundle declares one.
-RHO_BUNDLES = frozenset({"OGS-00003"})
+# Early-registered bundles that declare `post.rho: true`: OGS-00003's Dense Store
+# since #514, and OGS-00009's since #530 (the other priority Stores are not early-registered).
+RHO_BUNDLES = frozenset({"OGS-00003", "OGS-00009"})
+# Of the early-registered bundles, those that declare `post.clumps: true` with
+# `post.ld_stores` since #530 (the priority Stores of epic #520).
+CLUMP_BUNDLES = frozenset({"OGS-00006", "OGS-00009"})
+
+
+def without_ld_stores(argv: list[str]) -> list[str]:
+    """`argv` without its trailing `--ld-store ANCESTRY=PATH` pairs (a validate step that follows `post.clumps`)."""
+    argv = list(argv)
+    while len(argv) >= 2 and argv[-2] == "--ld-store":
+        del argv[-2:]
+    return argv
 
 
 class TestPlanDense(unittest.TestCase):
@@ -366,6 +377,65 @@ class TestPlanDense(unittest.TestCase):
                 outputs=[store_p],
             ),
         )
+
+    def _clumps_bundle(self, post: dict) -> Bundle:
+        return Bundle(
+            store_id="OGS-00003",
+            root=Path("stores/OGS-00003"),
+            release=self.bundle_00003.release,
+            build={**without_indexed_subsets(self.bundle_00003.build), "post": post},
+            analyses_path=self.bundle_00003.analyses_path,
+        )
+
+    def test_clumps_planned_after_rho_with_ld_stores_and_validated(self) -> None:
+        """`post.clumps` plans `clump` after top-hits and rho, as `rho` is planned (#526); validate gets the same --ld-store pairs."""
+        bundle = self._clumps_bundle(
+            {
+                "top_hits": True,
+                "rho": True,
+                "clumps": True,
+                "ld_stores": {"EUR": "/ld/EUR", "AFR": "/ld/AFR"},
+                "overview": True,
+                "validate": True,
+            }
+        )
+        steps = plan(bundle)
+        record_check()
+        self.assertEqual([s.name for s in steps], ["build", "rho", "clump", "overview", "validate"])
+        store_p = Path("/data/opengwasdb/stores/OGS-00003/store.opengwasdb")
+        pairs = ["--ld-store", "AFR=/ld/AFR", "--ld-store", "EUR=/ld/EUR"]
+        record_check()
+        self.assertEqual(
+            steps[2],
+            Step(
+                name="clump",
+                argv=["opengwasdb", "clump", str(store_p), *pairs],
+                inputs=[store_p],
+                outputs=[store_p],
+            ),
+        )
+        record_check()
+        self.assertEqual(steps[4].argv[:5], ["opengwasdb", "validate", str(store_p), "--format", "json"])
+        self.assertEqual(steps[4].argv[-4:], pairs)
+
+    def test_clumps_without_ld_store_mapping_refused(self) -> None:
+        """A recipe declaring `post.clumps` with no LD Store mapping is refused at planning, naming it."""
+        for post in (
+            {"clumps": True, "validate": True},
+            {"clumps": True, "ld_stores": {}, "validate": True},
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                plan(self._clumps_bundle(post))
+            record_check()
+            self.assertIn("post.clumps", str(ctx.exception))
+            self.assertIn("ld_stores", str(ctx.exception))
+
+    def test_ld_stores_without_clumps_is_inert(self) -> None:
+        """A declared mapping with clumps off plans no clump step and no --ld-store on validate."""
+        steps = plan(self._clumps_bundle({"clumps": False, "ld_stores": {"EUR": "/ld/EUR"}, "validate": True}))
+        record_check()
+        self.assertNotIn("clump", [s.name for s in steps])
+        self.assertNotIn("--ld-store", steps[-1].argv)
 
     def test_post_flags_selective_toggle(self) -> None:
         """Individual post flags toggle corresponding steps on and off."""
@@ -592,27 +662,23 @@ class TestPlanHybrid(unittest.TestCase):
         record_check()
         self.assertIn("top_hits post-processing is not supported or built inline for hybrid layout", str(ctx.exception))
 
-    def test_hybrid_rho_rejected(self) -> None:
-        """Configuring rho: true on a Hybrid layout raises ValueError (rho is Dense only)."""
-        bundle_invalid_rho = Bundle(
+    def test_hybrid_rho_planned(self) -> None:
+        """rho: true on a Hybrid plans build-dense-rho on the Store, after build (#529)."""
+        bundle_rho = Bundle(
             store_id="OGS-00004",
             root=Path("stores/OGS-00004"),
             release=self.bundle_00004.release,
             build={
-                **self.bundle_00004.build,
-                "post": {
-                    "top_hits": False,
-                    "rho": True,
-                    "overview": True,
-                    "validate": True,
-                },
+                **without_indexed_subsets(self.bundle_00004.build),
+                "post": {"top_hits": False, "rho": True, "overview": False, "validate": True},
             },
             analyses_path=self.bundle_00004.analyses_path,
         )
-        with self.assertRaises(ValueError) as ctx:
-            plan(bundle_invalid_rho)
+        steps = plan(bundle_rho)
         record_check()
-        self.assertIn("rho post-processing is valid only for dense layout, not 'hybrid'", str(ctx.exception))
+        self.assertEqual([s.name for s in steps], ["build", "rho", "validate"])
+        self.assertEqual(steps[1].argv[:2], ["opengwasdb", "build-dense-rho"])
+        self.assertEqual(steps[1].argv[2], str(steps[0].outputs[0]))
 
     def test_hybrid_post_flags_selective_toggle(self) -> None:
         """Individual post flags toggle corresponding steps for hybrid layout."""
@@ -792,7 +858,7 @@ class TestPlanRagged(unittest.TestCase):
                 plan(bundle_invalid_rho)
             record_check()
             self.assertIn(
-                f"rho post-processing is valid only for dense layout, not '{expected_layout_name}'",
+                f"rho post-processing is valid only for dense and hybrid layouts, not the ragged layout ('{expected_layout_name}')",
                 str(ctx.exception),
             )
 
@@ -955,7 +1021,7 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(
             [s.name for s in steps_besd], ["build", "validate", *COMPLETION_STEPS_00001]
         )
-        self.assertEqual([s.name for s in steps_ssf], ["build", "top-hits", "validate"])
+        self.assertEqual([s.name for s in steps_ssf], ["build", "top-hits", "clump", "validate"])
 
         # 2. Build positional arguments: BESD takes prefix and output; SSF takes manifest, source_dir, and output
         build_besd = steps_besd[0]
@@ -1710,10 +1776,30 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 str(ctx.exception),
             )
 
-    def test_reference_completed_rho_dense_only(self) -> None:
-        """rho: true is rejected on hybrid-completed and ragged-completed, but allowed on dense-completed."""
+    def test_hybrid_completed_rho_planned(self) -> None:
+        """rho: true on a Hybrid completion plans build-dense-rho on the completed Store (#529)."""
+        bundle_rho = Bundle(
+            store_id="OGS-00060",
+            root=Path("stores/OGS-00060"),
+            release={"store_id": "OGS-00060", "family": "test-family", "derived_from": "OGS-00001", "status": "accepted"},
+            build={
+                "store_id": "OGS-00060",
+                "layout": "hybrid",
+                "completion_state": "reference_completed",
+                "complete": {"command": "complete-hybrid", "options": {}},
+                "post": {"top_hits": False, "rho": True, "overview": False, "validate": True},
+            },
+            analyses_path=Path("stores/OGS-00060/analyses.tsv"),
+        )
+        steps = plan(bundle_rho)
+        record_check()
+        rho = [s for s in steps if s.name == "rho"]
+        self.assertEqual(len(rho), 1)
+        self.assertEqual(rho[0].argv[:2], ["opengwasdb", "build-dense-rho"])
+
+    def test_reference_completed_rho_ragged_only_refused(self) -> None:
+        """rho: true is rejected on ragged-completed, but allowed on dense- and hybrid-completed."""
         for layout, cmd, expected_layout_name in [
-            ("hybrid", "complete-hybrid", "hybrid-completed"),
             ("ragged", "complete-ragged", "ragged-completed"),
         ]:
             bundle_invalid_rho = Bundle(
@@ -1743,7 +1829,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 plan(bundle_invalid_rho)
             record_check()
             self.assertIn(
-                f"rho post-processing is valid only for dense layout, not '{expected_layout_name}'",
+                f"rho post-processing is valid only for dense and hybrid layouts, not the ragged layout ('{expected_layout_name}')",
                 str(ctx.exception),
             )
 
@@ -1995,8 +2081,8 @@ class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
         self.assertEqual(
             [s.name for s in steps if s.phase == "completion"],
             [
-                "complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate",
-                "completion-observed-view-check",
+                "complete", "completion-rho", "completion-clump", "completion-indexed-subset-hm3",
+                "completion-overview", "completion-validate", "completion-observed-view-check",
             ],
         )
         for step in steps:
@@ -2012,6 +2098,58 @@ class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
         steps = plan(load("OGS-00011"))
         record_check()
         self.assertEqual([s for s in steps if s.phase == "build"], plan(self.observed_only()))
+
+
+class TestPlanPriorityCompletions(unittest.TestCase):
+    """The completion, Rho and Clumps #530 amended into the priority Stores' recipes (epic #520).
+
+    One Ragged completion (OGS-00024, sibling OGS-00013's AFR panel), one Hybrid completion
+    (OGS-00032, EAS) and one Dense Store (OGS-00013) with rho and clumps. Each plans its
+    completion phase as `complete`, then `completion-rho` (Dense and Hybrid only), then
+    `completion-clump`, in the order #526 and #529 set; the goldens are the planner's own.
+    """
+
+    CASES = {
+        "OGS-00024": ["complete", "completion-clump", "completion-validate", "completion-observed-view-check"],
+        "OGS-00032": [
+            "complete", "completion-rho", "completion-clump", "completion-indexed-subset-hm3",
+            "completion-overview", "completion-validate", "completion-observed-view-check",
+        ],
+        "OGS-00013": [
+            "complete", "completion-rho", "completion-clump", "completion-indexed-subset-hm3",
+            "completion-overview", "completion-validate", "completion-observed-view-check",
+        ],
+    }
+
+    def test_each_plan_matches_its_golden_and_orders_the_completion_phase(self) -> None:
+        for store_id, completion in self.CASES.items():
+            with self.subTest(store_id):
+                steps = plan(load(store_id))
+                assert_steps_match_golden(
+                    self, steps, REPO_ROOT / "tests" / "plan" / "golden" / f"{store_id}-single-id-completed.json"
+                )
+                record_check()
+                self.assertEqual([s.name for s in steps if s.phase == "completion"], completion)
+                for step in steps:
+                    validate_step_argv_against_cli(self, step)
+
+    def test_the_priority_recipes_declare_their_siblings_panels(self) -> None:
+        panel = "/data/opengwasdb/reference/hgdp1kgp-hg38/panel"
+        expected = {"OGS-00024": ("AFR", 32), "OGS-00025": ("EAS", 32), "OGS-00026": ("SAS", 32), "OGS-00032": ("EAS", 24), "OGS-00033": ("AFR", 24)}
+        for store_id, (ancestry, workers) in expected.items():
+            with self.subTest(store_id):
+                bundle = load(store_id)
+                record_check()
+                self.assertEqual(bundle.build["completion_state"], "reference_completed")
+                self.assertEqual(
+                    bundle.build["complete"]["options"], {"ld-panel": panel, "ancestry": ancestry, "n-workers": workers}
+                )
+
+    def test_ogs_00016_stays_observed_only(self) -> None:
+        """The owner ruled on 2026-11-25 that the converted META Store is completed after a rebuild from source."""
+        record_check()
+        self.assertEqual(load("OGS-00016").build["completion_state"], "observed_only")
+        self.assertNotIn("complete", load("OGS-00016").build)
 
 
 class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
@@ -2058,7 +2196,7 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
         record_check()
         self.assertEqual(
             [s.name for s in steps if s.phase == "completion"],
-            ["complete", "completion-validate", "completion-observed-view-check"],
+            ["complete", "completion-clump", "completion-validate", "completion-observed-view-check"],
         )
         check = steps[-1]
         self.assertEqual(check.argv[check.argv.index("--ld-panel") + 1], self.LD_PANEL)
@@ -2078,7 +2216,8 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
             self.completed({"command": "complete-ragged", "options": {"--ld-panel": self.LD_PANEL, "ancestry": ["EUR"]}})
         )
         record_check()
-        complete, check = steps[-3], steps[-1]
+        complete = next(s for s in steps if s.name == "complete")
+        check = steps[-1]
         self.assertEqual(complete.argv[-4:], ["--ld-panel", self.LD_PANEL, "--ancestry", "EUR"])
         output = check.argv.index("--output")
         self.assertEqual(check.argv[output - 4 : output], complete.argv[-4:])
@@ -2250,7 +2389,7 @@ class TestValidateWorkerCount(unittest.TestCase):
                     if declared is None:
                         self.assertNotIn("--n-workers", step.argv)
                     else:
-                        self.assertEqual(step.argv[-2:], ["--n-workers", str(declared)])
+                        self.assertEqual(without_ld_stores(step.argv)[-2:], ["--n-workers", str(declared)])
 
     def test_the_completion_validate_takes_the_complete_blocks_count_else_the_builds(self) -> None:
         bundle = load("OGS-00011")
@@ -2258,19 +2397,19 @@ class TestValidateWorkerCount(unittest.TestCase):
         self.assertEqual(bundle.build["complete"]["options"]["n-workers"], 24)
         argv = self._validate_argv(plan(bundle), "completion-validate")
         record_check()
-        self.assertEqual(argv[-2:], ["--n-workers", "24"])
+        self.assertEqual(without_ld_stores(argv)[-2:], ["--n-workers", "24"])
         build = {**bundle.build, "complete": {**bundle.build["complete"], "options": {
             **bundle.build["complete"]["options"], "n-workers": 5}}}
         steps = plan(replace(bundle, build=build))
         record_check()
-        self.assertEqual(self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "5"])
+        self.assertEqual(without_ld_stores(self._validate_argv(steps, "completion-validate"))[-2:], ["--n-workers", "5"])
         record_check()
-        self.assertEqual(self._validate_argv(steps, "validate")[-2:], ["--n-workers", "10"])
+        self.assertEqual(without_ld_stores(self._validate_argv(steps, "validate"))[-2:], ["--n-workers", "10"])
         options = {k: v for k, v in bundle.build["complete"]["options"].items() if k != "n-workers"}
         steps = plan(replace(bundle, build={**bundle.build, "complete": {**bundle.build["complete"], "options": options}}))
         record_check()
         self.assertEqual(
-            self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "10"],
+            without_ld_stores(self._validate_argv(steps, "completion-validate"))[-2:], ["--n-workers", "10"],
             "falls back to the build's own count",
         )
 
@@ -2708,7 +2847,7 @@ class TestPostDefaults(unittest.TestCase):
     def test_default_values(self) -> None:
         """Only rho and validate are defaults; top_hits and overview are not."""
         record_check()
-        self.assertEqual(POST_DEFAULTS, {"rho": False, "validate": True})
+        self.assertEqual(POST_DEFAULTS, {"rho": False, "clumps": False, "validate": True})
 
     def test_absence_falls_back_to_defaults(self) -> None:
         """A recipe that omits rho/validate still plans validate and no rho."""
@@ -2731,10 +2870,14 @@ class TestPostDefaults(unittest.TestCase):
         for sid in EARLY_REGISTERED:
             post = load(sid).build.get("post") or {}
             record_check()
-            # OGS-00003 is the one committed bundle that declares rho (#514):
-            # its Dense Store carries a Rho Matrix; every other recipe leaves
-            # it to the default.
-            expected_keys = {"top_hits", "overview"} | ({"rho"} if sid in RHO_BUNDLES else set())
+            # OGS-00003 (#514) and OGS-00009 (#530) declare rho, and OGS-00006
+            # and OGS-00009 declare clumps with their LD Stores (#530); every
+            # other recipe leaves them to the defaults.
+            expected_keys = (
+                {"top_hits", "overview"}
+                | ({"rho"} if sid in RHO_BUNDLES else set())
+                | ({"clumps", "ld_stores"} if sid in CLUMP_BUNDLES else set())
+            )
             self.assertEqual(set(post), expected_keys, f"{sid} post keys")
             record_check()
             if sid not in RHO_BUNDLES:

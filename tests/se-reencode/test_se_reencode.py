@@ -545,7 +545,7 @@ class SeReencodeTestCase(unittest.TestCase):
         """An atomic record-write OSError is a uniform refusal and names both facts."""
         with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
              mock.patch.object(se_reencode, "_core_plan", return_value=[]), \
-             mock.patch.object(se_reencode.run, "_write_record_atomically", side_effect=OSError("disk full")):
+             mock.patch.object(se_reencode.run, "write_record_atomically", side_effect=OSError("disk full")):
             code, out, err = self.run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)

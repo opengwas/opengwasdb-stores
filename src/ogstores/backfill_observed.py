@@ -5,7 +5,7 @@
 `register` records `observed.format_version` (#512, from `opengwasdb info
 --format json` when no step reported it) and `observed.store_bytes`, `has_hm3`, `has_rho` and
 `n_top_hits` at publication (#502). A record written before that carries
-`store_bytes: null` and none of the other three. This tool fills those five keys
+`store_bytes: null` and none of the other three. This tool fills those keys
 (`BACKFILL_FIELDS`) of every `built` or `validated` bundle's
 `validation.yaml`, the same way `register` does:
 
@@ -18,6 +18,9 @@
   `ogstores.store_info.store_info`, which `readiness` re-exports (the one reader, ADR 0023): the command's report
   fills a `null`. A recorded value is never overwritten: a Store whose `info`
   disagrees with it, or whose `info` fails, is refused;
+- `completion_state` from the same `info` report, when it names one: a record
+  written before #307 has none, and a rewrite's `publish-rewrite` carried the
+  gap (#525). A recorded state that disagrees with `info` is refused;
 - `n_top_hits` as `null`, until opengwas/opengwasdb#488 reports the counts.
 
 A bundle whose Store is not under the Artifact Root is reported by name as
@@ -65,14 +68,14 @@ from ogstores.bundle import Bundle
 from ogstores.paths import REPO_ROOT
 from ogstores.plan import BUILD_PHASE, REGISTER_STEPS, plan, release_register
 from ogstores.readiness import discover_bundles
-from ogstores.register import STORE_FACT_FIELDS, read_format_version, store_facts
+from ogstores.register import STORE_FACT_FIELDS, read_completion_state, read_format_version, store_facts
 
 #: The Release Statuses whose bundle describes a built Store.
 BUILT_STATUSES: frozenset[str] = frozenset({"built", "validated"})
 
 #: The `observed` keys the backfill may write: `format_version` (#512), then
 #: the Store facts `register` records at publication (#502).
-BACKFILL_FIELDS: tuple[str, ...] = ("format_version", *STORE_FACT_FIELDS)
+BACKFILL_FIELDS: tuple[str, ...] = ("format_version", *STORE_FACT_FIELDS, "completion_state")
 
 #: The outcomes, in the order the summary counts them. `missing` is a bundle
 #: whose Store is not under the Artifact Root, so there is nothing to measure.
@@ -150,6 +153,11 @@ def observed_facts(bundle_obj: Bundle, artifact_root: Path) -> dict[str, Any]:
         if record is not None:
             records[step.name] = record
     facts = {"format_version": read_format_version(store_dir), **store_facts(phase_steps, records, store_dir)}
+    # Only when `info` reports one: a record written before #307 (OGS-00016's
+    # rewrite, #525) has none, and the engine's report is the measurement.
+    completion_state = read_completion_state(store_dir)
+    if completion_state is not None:
+        facts["completion_state"] = completion_state
     if not registered:
         # No register record says which steps built this Store, so whether it
         # holds them is not known: null, never false.
@@ -216,7 +224,7 @@ def edit_observed(text: str, facts: dict[str, Any]) -> str:
     # Each key goes where it is, or after the Store fact before it, so the keys
     # keep register's order; a first key that is missing ends the block.
     anchor: int | None = None
-    for key in BACKFILL_FIELDS:
+    for key in (k for k in BACKFILL_FIELDS if k in facts):
         rendered = _render(key, facts[key], indent)
         span = _key_span(lines, head + 1, end, indent, key)
         if span is not None and any(_COMMENT.search(line) for line in lines[span[0]:span[1]]):
@@ -271,9 +279,17 @@ def backfill_bundle(bundle_obj: Bundle, artifact_root: Path, *, dry_run: bool) -
             f"`observed.format_version` records {recorded!r} but `opengwasdb info` reports "
             f"{facts['format_version']!r}; the backfill fills a null and overwrites nothing",
         )
+    recorded_state = observed.get("completion_state")
+    if recorded_state is not None and "completion_state" in facts and recorded_state != facts["completion_state"]:
+        return Outcome(
+            store_id, "refuse",
+            f"`observed.completion_state` records {recorded_state!r} but `opengwasdb info` reports "
+            f"{facts['completion_state']!r}; the backfill fills a null and overwrites nothing",
+        )
     changes = {
         key: (observed.get(key, ABSENT), facts[key])
         for key in BACKFILL_FIELDS
+        if key in facts
         if key not in observed or observed[key] != facts[key]
     }
     if edited == text:

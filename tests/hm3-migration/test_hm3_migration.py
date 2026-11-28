@@ -103,12 +103,33 @@ HAPMAP3_DECLARATION: dict[str, Any] = {
 # such ALIDs, so the subset cannot be built on the default policy. The EUR Hybrid
 # pilots OGS-00004 and OGS-00005 take the same option once their Dense Component
 # is built on the same gnomAD v4.1 common axis (epic #232): against it, 16,369
-# HM3 ALIDs reach only OGS-00004's shared axis.
+# HM3 ALIDs reach only OGS-00004's shared axis. The EAS and AFR Hybrids OGS-00032
+# and OGS-00033 take it too (#524, 2026-11-25): their forced releases refused at
+# indexed-subset-hm3 for 111,003 and 18,778 such ALIDs.
 HAPMAP3_OVERFLOW_ONLY_OPTIONS: dict[str, Any] = {"overflow-only": "skip"}
 DECLARATION_OPTIONS: dict[str, dict[str, Any]] = {
     "OGS-00004": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
     "OGS-00005": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
     "OGS-00011": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
+    "OGS-00032": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
+    "OGS-00033": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
+}
+
+# What #530 added to the priority Stores' `post` (epic #520, accepted on #522): Rho for the
+# Dense and Hybrid Stores, and Clumps with its LD Store mapping for all of them.
+_LD = "/data/opengwasdb/ld-stores/hgdp1kgp-v2-{0}/hgdp1kgp-v2-{0}-k10.store"
+POST_530: dict[str, dict[str, Any]] = {
+    store_id: {**({"rho": True} if rho else {}), "clumps": True, "ld_stores": {a: _LD.format(a) for a in ancestries}}
+    for store_id, rho, ancestries in (
+        ("OGS-00009", True, ("EUR",)),
+        ("OGS-00011", True, ("EUR",)),
+        ("OGS-00012", True, ("EUR",)),
+        ("OGS-00013", True, ("AFR",)),
+        ("OGS-00014", True, ("AMR",)),
+        ("OGS-00015", True, ("EAS",)),
+        ("OGS-00016", True, ("EUR",)),
+        ("OGS-00017", True, ("EUR",)),
+    )
 }
 
 # The pre-#211 Build Recipe values, frozen so a future edit that quietly changes
@@ -408,7 +429,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertEqual(build[phase]["options"], expected["options"], store_id)
             record_check()
-            self.assertEqual(build["post"], expected["post"], store_id)
+            self.assertEqual(build["post"], {**expected["post"], **POST_530.get(store_id, {})}, store_id)
 
     def test_plan_builds_hm3_before_overview_and_validation(self) -> None:
         for store_id in EXPECTED_IN_SCOPE:

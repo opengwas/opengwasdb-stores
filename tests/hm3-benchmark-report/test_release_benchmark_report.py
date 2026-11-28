@@ -26,6 +26,7 @@ Run from repository root:
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -340,6 +341,89 @@ class RandomAxisTest(unittest.TestCase):
 
         harness.assert_called_once()
         self.assertEqual(report["stores"][0]["shapes"]["status"], "measured")
+
+
+class Hm3AnchorFallbackTest(unittest.TestCase):
+    """The bundle's first Analysis can be one the build excluded (OGS-00011): anchor on the Store's own first."""
+
+    def _build(self, held: list[str], bundle_first: str = "a0") -> tuple[dict[str, Any], mock.Mock]:
+        store = _store("OGS-00011", "hybrid", analysis_id=bundle_first)
+        core = _fake_core({"OGS-00011": _State("missing", "no hm3 subset")})
+        measured = mock.Mock(return_value={"subset": "hm3", "status": "missing", "detail": "stub"})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "stores"
+            store_dir = root / store.store_id / "store.opengwasdb"
+            store_dir.mkdir(parents=True)
+            store_dir.joinpath("analyses.tsv").write_text(
+                "analysis_index\tanalysis_id\n" + "".join(f"{i}\t{name}\n" for i, name in enumerate(held))
+            )
+            with mock.patch.object(report_mod, "measure_hm3", measured):
+                report = report_mod.build_report(
+                    core, [store], artifact_root=root, anchors={}, reps=1, hm3_only=True,
+                    work_dir=Path(tmp) / "work",
+                )
+        return report, measured
+
+    def test_an_analysis_the_store_lacks_falls_back_to_the_stores_first(self) -> None:
+        report, measured = self._build(held=["GCST9", "GCST10"], bundle_first="GCST1")
+
+        anchored = measured.call_args.args[1]
+        self.assertEqual(anchored.analysis_id, "GCST9")
+        note = report["stores"][0]["hm3_anchor_note"]
+        self.assertIn("GCST1", note)
+        self.assertIn("anchored on GCST9", note)
+        self.assertEqual(report["stores"][0]["analysis_id"], "GCST1", "the entry still names the bundle's Analysis")
+        self.assertIn("OGS-00011: bundle's first Analysis GCST1 is not in the Store", report_mod.render_markdown(report))
+
+    def test_an_analysis_the_store_holds_is_the_anchor_and_leaves_no_note(self) -> None:
+        report, measured = self._build(held=["GCST9", "GCST1"], bundle_first="GCST1")
+
+        self.assertEqual(measured.call_args.args[1].analysis_id, "GCST1")
+        self.assertNotIn("hm3_anchor_note", report["stores"][0])
+
+
+class LoadCaptureTest(unittest.TestCase):
+    """`--max-start-load` reaches the core harness; 0 records at the current load (#532)."""
+
+    def _command(self, max_start_load: float | None) -> list[str]:
+        store = _store("OGS-00003", "dense")
+        core = _fake_core({})
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            report_mod.subprocess, "run", return_value=failed
+        ) as run:
+            report_mod.run_generic_shapes(
+                core, store, Path(tmp) / "store.opengwasdb", report_mod.Anchor(exposure="GCST000000"),
+                reps=1, output_path=Path(tmp) / "shapes.json", max_start_load=max_start_load,
+            )
+        return list(run.call_args.args[0])
+
+    def test_zero_is_passed_to_the_harness(self) -> None:
+        command = self._command(0)
+        self.assertEqual(command[command.index("--max-start-load") + 1], "0")
+
+    def test_a_threshold_is_passed_and_none_leaves_the_harness_default(self) -> None:
+        command = self._command(2.5)
+        self.assertEqual(command[command.index("--max-start-load") + 1], "2.5")
+        self.assertNotIn("--max-start-load", self._command(None))
+
+    def test_the_report_passes_it_on_and_records_it(self) -> None:
+        store = _store("OGS-00003", "dense")
+        core = _fake_core({"OGS-00003": _State("missing", "no hm3 subset")})
+        core.query_shapes.RANDOM_AXIS_SIZE = 1
+        harness = mock.Mock(return_value={"status": "measured", "detail": "stub"})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "stores"
+            (root / store.store_id / "store.opengwasdb").mkdir(parents=True)
+            with mock.patch.object(report_mod, "run_generic_shapes", harness):
+                report = report_mod.build_report(
+                    core, [store], artifact_root=root,
+                    anchors={"OGS-00003": report_mod.Anchor(exposure="GCST000000")},
+                    reps=1, hm3_only=False, work_dir=Path(tmp) / "work", max_start_load=0,
+                )
+        self.assertEqual(harness.call_args.kwargs["max_start_load"], 0)
+        self.assertEqual(report["max_start_load"], 0)
+        self.assertIn("max start load", report_mod.render_markdown(report))
 
 
 class HarnessTailTest(unittest.TestCase):

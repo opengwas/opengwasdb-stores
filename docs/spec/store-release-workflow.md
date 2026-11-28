@@ -158,15 +158,48 @@ build:
 post:
   top_hits: true                   # met by build-dense-vcf itself on Dense; Ragged plans build-ragged-top-hits
   overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
+  clumps: true                     # opengwasdb clump, every layout, 0.3.0 only (#526)
+  ld_stores:                       # required with clumps; never defaulted
+    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store
 ```
 
 `post` carries only the choices a Release makes differently from the defaults:
-`rho: false` and `validate: true`. `plan()` applies those defaults when a recipe
+`rho: false`, `clumps: false` and `validate: true`. `plan()` applies those defaults when a recipe
 omits them, and a recipe that states either key still wins. `top_hits` and
 `overview` are always explicit because they genuinely vary between releases --
 `overview` especially, since Ragged's closed Store envelope excludes
 `overview.html` and defaulting it on would re-enable a step the planner then
 refuses (ADR 0027, issue #128).
+
+**`post.clumps` and the LD Store mapping (#526).** `post.clumps: true` plans
+`opengwasdb clump <store> --ld-store ANCESTRY=PATH …`, the in-place Clumps of the
+Store's 5e-8 tier (opengwasdb ADR 0106, spec §18.1). It is planned as `post.rho` is, by
+the same `_post_steps` and in the completion phase as well as the build phase, after
+`top-hits` and `rho` and before `overview` and `validate`, on every layout (the engine
+clumps Dense, Ragged and Hybrid Stores at 0.3.0). Like `rho` it is a re-runnable in-place
+addition (ADR 0034).
+
+The mapping is the recipe's `post.ld_stores`, a mapping from Assigned Ancestry to the LD
+Store's path, **explicit and never defaulted**. It sits in the recipe, not in
+`ogstores.yaml`, because it is a build input that the bundle freezes, as `besd_prefix`
+is: the bundle then names exactly the LD Stores a Store's Clumps were made against, and
+`plan()` stays a pure function of the bundle and the artifact root, so `stores.tsv`'s
+`build_command` and the runtime guard need no second source of configuration. A recipe
+with `post.clumps: true` and no mapping is refused at planning, and by the bundle check,
+naming `post.ld_stores`. The pairs are rendered sorted by ancestry. The LD Stores are
+`hgdp1kgp-v2-AFR`, `-AMR`, `-EAS`, `-EUR` and `-SAS` and `panukb-EUR-k15` under
+`/data/opengwasdb/ld-stores/`; each path in the mapping names the LD Store itself
+(`hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store`), not the directory that holds it, which
+`opengwasdb.ld.query.ldstore.open` cannot open. An Analysis whose ancestry has no LD Store is not filtered
+here: the engine counts it unclumped and reports it under `not_clumped.no_ld_store`.
+
+The planned `validate` carries the same `--ld-store` pairs when `post.clumps` is declared,
+so that `clumps.reclump` runs instead of being reported as a skip. `register` records
+`observed.has_clumps` (null when the recipe plans no `clump` step, as `has_rho`) and the
+`n_loci_5e8` and `n_unclumped_5e8` the step's JSON printed; the engine prints both as null
+when it clumped nothing, which is recorded as null. The runtime guard probes `clump` like
+any command a scheduled plan names.
 
 A Reference-Completed release completes its own Store under its id (ADR 0037). It is the same file plus a `complete` block, with `completion_state: reference_completed` and no `derived_from`: the `build` block builds and publishes the Observed-Only Store, and the `complete` block then completes that published Store and replaces it. The recipe names no Store path, because completion's source is the id's own Store path. `bundle.check()` requires both blocks of such a bundle and names the one that is missing. `plan()` plans it for every layout (`plan.py` below). A Ragged release's `complete` options must name the `ld-panel` and `ancestry` it completes against, and the Observed-View Check is given both (below). A bundle that carries `sidecars/sparse_regions.tsv` records those regions in its Store: `plan()` gives the table to its build step as `--regions`, and refuses a `build` option that renders the same flag (#459, opengwas/opengwasdb#430). The completion phase takes no such flag: it reads the `regions.tsv` the build kept. A bundle that records none plans exactly as it did before #459.
 
@@ -358,7 +391,7 @@ unchanged.
 ```python
 @dataclass(frozen=True)
 class Step:
-    name: str               # build|complete|top-hits|rho|overview|validate, or completion-<step>
+    name: str               # build|complete|top-hits|rho|clump|overview|validate, or completion-<step>
     argv: list[str]
     inputs: list[Path]
     outputs: list[Path]
@@ -491,14 +524,47 @@ The supported operator entry point, run by `pixi run release` and
 `pixi run release-dry` through `workflow/release.py` (#195). It allowlists
 options, and around one Snakemake run it does four things: it completes
 pending publications, refuses unsafe runs, snapshots what a forced run may
-replace, and settles the run. See Safety.
+replace, and settles the run. A named, unforced, published release whose
+recipe declares post steps its records lack is handed to `post_additions.py`
+instead of Snakemake. See Safety.
+
+### `publish_rewrite.py`
+
+Publishes a Store Release that `opengwasdb rewrite-release` staged beside the
+published one (#533, ADR 0043), run by `pixi run publish-rewrite`. It records
+the operator's run of the rewrite as a step, runs the planned `validate` step on
+the staged release, and publishes it through `register.complete_publication`.
+See Safety, *Publishing a rewritten release*.
+
+### `post_additions.py`
+
+Adds the post steps a published Store's recipe declares and its records lack
+(`top-hits`, `rho`, `clump`, and the declared `overview` with them) to that
+Store in place, with no rebuild (#528, ADR 0044), for `pixi run release <ID>`.
+It stages a reflink copy, runs the steps and `validate` there, and publishes it
+through `staged_publication`. Its `current()` is the one check, shared with the
+Snakefile, that a release it published is up to date. See Safety, *Adding
+missing post steps to a published Store*.
+
+### `staged_publication.py`
+
+The publication lifecycle `publish_rewrite.py` and `post_additions.py` share
+(#533, #528): snapshot `records/`, stage the candidate at `.partial`, run the
+mode's work, write `publication.json`, finish it. Its rollback undoes the
+staging, keeps the mode's evidence in `work/` and restores `records/`, shielded
+from Ctrl-C and SIGTERM. `Interrupted` names the state an interruption left.
+`republication()` is the shared record envelope: the Validation Record, the
+register record and the marker, from `register`'s builders. Each mode keeps its
+own staging and verdict policy.
 
 ### `amendment.py`
 
 The one amendment an accepted Release Bundle allows (ADR 0037, #305).
 `refuse_changed_bundles()` refuses a run of a bundle that completes its own
 Store when it no longer plans the Store its release published, and names what
-changed. See Safety, *The one amendment an accepted bundle allows*.
+changed. `published_store_changes()` is the one walk of the published phases
+both use; `bundle_changes()` applies it to a bundle that completes its own
+Store, and `post_additions.py` to every bundle. See Safety, *The one amendment an accepted bundle allows*.
 
 ### `resources.py` and `runtime.py`
 
@@ -554,8 +620,10 @@ An interrupted Dense completion resumes rather than restarts; `complete-hybrid` 
 **The amendment an accepted bundle allows** (#305, ADR 0037). An accepted Release Bundle may change in exactly two ways, and neither changes its membership. An `observed_only` bundle may gain a `complete` block and switch to `completion_state: reference_completed`, which this section covers. And observations about the built Store may be recorded into its Validation Record's `observed` block (#502; see the schema's `validation.yaml` section). The first amendment is how a Store published before its bundle declared completion is completed under its id. Before any job runs, `amendment.refuse_changed_bundles` holds a bundle that now completes its own Store (`Bundle.completes_own_store`), and whose build phase has published, to the Store it published. The baseline is the published release's records, never its Store, and only what made that Store:
 - once the build phase has published (`records/register.json`), its Store-writing steps, `variant-reference` if planned and `build`, must be the steps its register record registered (its `inputs`), each planned with the argv its own record planned (`planned_argv`, which `register` held the executed argv to). One difference is tolerated, and only this one (#341, ADR 0040): a recorded argv that names no `--association-coverage` matches a planned argv that differs by the declaration-derived `--association-coverage <release.yaml value>` pair alone, because a Store published before that flag existed would otherwise be refused the completion #224 wants for it, for a reason that is not a rebuild. A recorded argv that names a coverage -- another value included -- is compared whole, as is every other token. A second difference is tolerated on the same terms (#428, ADR 0037 amended): a recorded argv that is the plan without its composed `--admission-record <artifact-root>/<id>/store.opengwasdb.admission` pair, at the record's own root, matches (`plan.planned_before_admission_record`), and so does one without that pair and the coverage pair both, for a Ragged record that predates #341 too. The flag names where the builder writes its Admission record, beside the Store; it changes no Store data, and every Store published before #428 has a `build` record that names none. A recorded argv that names an Admission record, at any path, is compared whole. The manifest the bundle's `analyses.tsv` makes now must be byte-for-byte the one the Store was built from, `work/analyses.tsv`, and must exclude the same Analyses (`work/analyses.exclusions.json`). Neither published file is optional: a missing derived build manifest, and an exclusion audit sidecar that is missing, unreadable, or does not list its dropped Analyses by `analysis_id`, are each refused as a membership that cannot be compared, naming the file, never read as no exclusions. Only a missing register record means a phase has not published: one that exists but is not a readable JSON object is refused as a phase that cannot be compared, naming it, and so is such a step record;
 - once the completion phase has published (`records/completion-register.json`), the same holds for its `complete`.
+- a published phase whose register record lists `records/rewrite-release.json` or carries a `rewrite` block (a release `publish-rewrite` published, ADR 0043, #527) is held to both: the `rewrite-release` record must exist, be readable and name this Store, and the Store-writing steps are still compared to the records of the release the conversion converted, because that release's `build` record is the Store's data lineage and the rewrite is not a build. A phase that lists one without the other, or whose record is missing, unreadable or for another Store, is refused.
+- a conversion whose register record's `rewrite.deviations` lists `variant_table.indel_order` is refused while its completion phase has not published: its indels may be spelt sorted, and completing it can duplicate a deletion under two ALIDs. The remedy is a rebuild from source (the owner's 25 Nov 2026 decision, OGS-00016 stays Observed-Only). A conversion with no such deviation completes. Both references to the rewrite, `rewrite.record` and the `inputs` entry, must identify this Store's own `rewrite-release` record (a relocated artifact root is allowed); a `rewrite: null`, a block without `record`, or an input naming another Store's record refuses.
 
-Post steps (`top-hits`, `rho`, `indexed-subset-<name>`, `overview`, `validate`, and their completion-phase counterparts) are re-runnable in-place additions (ADR 0034, opengwasdb ADR 0061), so a new declaration, or a planner that has changed their argv since, is not refused. Observed-only and two-id releases are not checked: they behave as before #305. Nothing enforces accepted-bundle immutability of `release.yaml`'s prose and provenance, for any bundle; review does. Gaining a `complete` block passes, because the build phase plans what the bundle planned as `observed_only`. A record names the artifact root it was written under (`record_path`), and the bundle is planned under that root for the comparison, so a release copied to another root still matches. The refusal lists each change:
+Post steps (`top-hits`, `rho`, `clump`, `indexed-subset-<name>`, `overview`, `validate`, and their completion-phase counterparts) are re-runnable in-place additions (ADR 0034, opengwasdb ADR 0061), so a new declaration, or a planner that has changed their argv since, is not refused. Observed-only and two-id releases are not checked: they behave as before #305. Nothing enforces accepted-bundle immutability of `release.yaml`'s prose and provenance, for any bundle; review does. Gaining a `complete` block passes, because the build phase plans what the bundle planned as `observed_only`. A record names the artifact root it was written under (`record_path`), and the bundle is planned under that root for the comparison, so a release copied to another root still matches. The refusal lists each change:
 - a step's changed tokens, with their flag, `` `--min-cor 0.0` became `--min-cor 0.5` ``;
 - a Store-writing step planned but not published, or published but no longer planned;
 - each Analysis added, removed, changed (naming its columns), newly excluded or no longer excluded.
@@ -589,6 +657,66 @@ A crash between any two steps, up to and including the marker's removal, therefo
 - it deletes the Store it replaces once the completed Store is published, rather than archiving it (ADR 0037, Decision 3, #309): the completed Store holds everything the replaced one held, so steady state keeps one copy, 33 GB less for UKB-B. So it publishes only over a passing Observed-View Check. Before it writes the marker, `register` reads `records/completion-observed-view-check.json` and takes the first JSON object on its stdout as the verdict (a step's output may be captured twice). No record, a stdout that holds no verdict, and any `passed` but `true` are each refused, naming the record, and nothing is changed. This is beside the rule that every planned step's record shows success. A forced run's completion phase archives the Store it replaces, as every forced replacement does. Its build phase's publication has already moved the run's snapshot into `replaced/<release_run>/`, so `register.forced_completion` reads the build phase's `records/register.json`: the run forced the release when that record's `replaced_archive` names this run's archive, and did not when it is null or another run's. Nor did it when the record has no `replaced_archive`: `register` has written the field since #195, so such a record predates #195, and a forced run would have rewritten it. Every Store published before #195 has one, and completing it under its own id (#305) meets it. A record that exists but is not a readable JSON object, and a `replaced_archive` that is neither a path nor null, are refused, naming the record, and nothing is changed: read as unforced, either would delete a Store a forced run archives.
 
 Both phases run in one entry-point run, so the completion phase starts while the build phase's marker still stands: the entry point removes it only after Snakemake's last job. The completion phase's first step, `complete`, therefore finishes that publication itself, marker last, before it stages anything (`register.finish_build_phase_publication`, called from `run.execute_step` for a step that reads the published Store). A staged Store beside a pending first publication is a state `complete_publication` refuses, so it must never arise. This is safe at that point: `complete` consumes `records/register.json`, so Snakemake has already recorded the build phase's register job complete, and no mark that it is incomplete is outstanding. A crash before the marker is removed leaves it, with nothing staged, and the next run's recovery finishes it as any other. A pending publication of the completion phase itself is refused there, as everywhere.
+
+**Publishing a rewritten release** (#533, [ADR 0043](../adr/0043-a-rewritten-release-is-published-through-the-registry.md)). `opengwasdb rewrite-release` derives a 0.3.0 release from a published 0.2.x one and stages it beside it, outside any run of this workflow; with `--convert-legacy` it converts a 0.2.0-0.2.2 Dense release and records what it cannot fix as deviations, by validator rule name. One command publishes it:
+
+```sh
+pixi run publish-rewrite OGS-00015 \
+    --staged /data/opengwasdb/stores/OGS-00015/store.opengwasdb.0.3.0 \
+    --evidence <run>/logs/convert/OGS-00015
+```
+
+`--evidence` names the operator's record of the rewrite, six files beside one another: `<prefix>.cmd` (the command, optionally followed by ` (budget <N>s)`), `.log` (its stdout and stderr), `.time` (its `/usr/bin/time -v` report), `.start` and `.end` (UTC times), and `.exit` (its exit code). Under the release's run lock (`ReleaseLocks`), `ogstores.publish_rewrite`:
+
+1. finishes a pending publication of a rewrite (`complete_publication`), refusing another run's marker, which `pixi run release <ID>` finishes because it also clears Snakemake's incomplete marks; and does nothing when the staged path is gone and the publishing phase's register record names it as the rewrite of the Store now published (the same `release_id`, by `opengwasdb info`);
+2. refuses, writing nothing:
+   - a staged path that is missing, is not a directory of its own beside the published Store, or is one of the transaction's names (`.partial`, `.backup`);
+   - a leftover records snapshot, named first with its remedy (`pixi run release <ID> --resolve-snapshot restore`, then moving a `.partial` release back to the staged path), so a `.partial` beside it cannot hide it; then a leftover `.partial` or `.backup`, an unfinished completion's checkpoint (`.store.opengwasdb.partial.checkpoint`) or `work/complete.started.json`, which a forced run's preflight would discard;
+   - no published Store;
+   - evidence that is not UTF-8, is not one shell command, does not show `rewrite-release` reading this published Store and writing this staged path, exited other than 0, or whose timed command or exit status disagrees with `.cmd` and `.exit`;
+   - a published Store directory or publishing-phase register record modified after the evidence's `.start`: the release at the source path may not be the one the rewrite read;
+   - an engine executable whose install names no exact commit, or whose `direct_url.json` was written after `.start` (`engine.executable_install_record`): `info` names no writer, so the install must be the one that ran;
+   - a staged or published release whose `store_id`, as `opengwasdb info --format json` reports it, is not the bundle's; a staged release that is not `REQUIRED_FORMAT_VERSION` (0.3.0); a published one not of the 0.2 series; the same `release_id`; and any of those fields absent;
+   - a publishing-phase register record that cannot be read or names no `inputs`;
+   - a runtime that `runtime.verify_runtime_for_releases` refuses for the validate step, as `pixi run release` would;
+3. copies `records/` to a forced run's snapshot (`run.snapshot_records`, the copy alone; a copy that fails removes its hidden `.records.before-force-<UTC>.copying` and leaves nothing to resolve), renames the staged release to `store.opengwasdb.partial`, writes `records/rewrite-release.json` from the evidence, and runs the Build Recipe's planned validate step for the publishing phase (`validate`, or `completion-validate` for a release that completed its own Store) through `run.execute_step`. `rewrite-release.json` is a `run.StepResult`. Its `argv` is the command, and `opengwasdb_rev` and `opengwasdb_version` come from that executable's install. Its `stdout` is the log. It adds `peak_rss_kb`, `budget_seconds`, `log_path` and `evidence`, the paths of the six files;
+4. refuses a validate step that did not exit 0, naming its errors, and any warning that is neither a recorded deviation nor carried. A deviation is accepted only from a `--convert-legacy` rewrite, only under `variant_table.indel_order`, `variant_table.lifted_contig`, `variant_table.source_alid` or `side_tables.se_exceptions_rounded`, and only when its message ends in the note the engine appends to a recorded deviation (`[a deviation recorded by ogdb rewrite-release --convert-legacy, which converted this release from format_version <v> (release <id>); a rebuild from source fixes it]`); a 0.2.3 rewrite accepts none. A warning is carried when the replaced Validation Record's `warnings` holds the same message, as exact text (a 0.2.x record keeps no rule or target; every warning a 0.3.0 rewrite can emit names its subject, except `variant_table.lifted_contig`'s "N not judged", which carries only a count); a deviation rule is never carried; each recorded copy accepts one finding, so a changed text, or a warning the record lacks, is refused (the owner's 25 Nov 2026 ruling, ADR 0043). The rules are read from `findings`. A rule's finding that no deviation records can be a plain warning (`variant_table.lifted_contig`'s "not judged"), so the rule alone does not make it the record's. The registry does not read `provenance.converted_from` (ADR 0023). Any failure before the marker exists (a refusal, an error, Ctrl-C, SIGTERM) moves the staged release back, copies this call's validate record byte for byte to `work/publish-rewrite-refused-<UTC>-validate.json` when there is one (any failure to copy it is only noted), and, whatever that raised, restores `records/` from the snapshot. The published Store and `validation.yaml` are not touched;
+5. writes `publication.json` with `replaced_store: archive` and the snapshot (`register.begin_publication`, through `staged_publication.republication`, from the builders `register_release` uses), and calls `complete_publication`. Steps 3 to 5, and the rollback in step 4, are `staged_publication.publish`, which `post_additions.py` shares. From the marker on, nothing is undone: a failure leaves it for the next call to finish. Its seven steps above archive the old Store, its records and its Validation Record under `replaced/<UTC>/`.
+
+The register record written is the publishing phase's: `completion-register` when `records/completion-register.json` exists, `register` otherwise. Its `inputs` are the replaced record's with `records/rewrite-release.json` added, so the amendment check above still finds the Store-writing steps that made the data. It carries the Validation Record's `rewrite` block. A killed run (SIGKILL, host crash) before the marker leaves the snapshot and the `.partial` release; the next call refuses and names the remedy, `--resolve-snapshot restore` and moving `.partial` back to the staged path.
+
+**Adding missing post steps to a published Store** (#528, [ADR 0044](../adr/0044-missing-post-steps-are-added-to-a-published-store-in-place.md)). A recipe that gains `post.rho`, `post.clumps` (with `post.ld_stores`) or a standalone `post.top_hits` after its Store was published gains them with one command, with no `--config force=1` and no rebuild:
+
+```sh
+pixi run release-dry OGS-00015   # the plan: the missing steps, overview, validate, register
+pixi run release OGS-00015
+```
+
+A Dense build and every completion build the Top-Hit Index inline and plan no `top-hits` step, so none is added there; a Ragged build phase's is.
+
+Before Snakemake, and after recovery and the leftover-snapshot refusal, the entry point asks `post_additions.assess` about each release it is named, unforced (`all` names none). A step's evidence is *current* when its record succeeded and, for an addable step (`top-hits`, `rho`, `clump`) or `validate`, planned it as the recipe plans it now, at the root it was written under: a `clump` record from another LD Store mapping is not current. A release is the mode's when its last phase has published (`records/register.json`, or `records/completion-register.json`) and its Store path exists, and that phase lacks current evidence for an addable step or `overview` (or, once the mode has published it, for those or `validate`), and for nothing else. A release that completes its own Store and has not yet published its completion phase is not: completion comes first, and the post steps run in its completion phase. The plan is the lacking addable steps in plan order, the declared `overview` (`completion-overview`) when anything is added or its record is missing, then `validate` and the register. A later step with current evidence (an Indexed Variant Subset) is not rerun. Snakemake is not run for a release the mode takes. Under that release's lock, `post_additions.add_post_steps`:
+
+1. refuses, writing nothing:
+   - a bundle that no longer plans the Store it published: `amendment.published_store_changes`, ADR 0037's baseline (Store-writing argv, with #341's and #428's exceptions, and membership), the one walk `bundle_changes` uses too;
+   - a leftover `publication.json`, `.partial`, `.backup`, completion checkpoint, `work/complete.started.json` or records snapshot, naming the remedy;
+   - a release directory, Store, `.partial` or `.backup` that is a symlink (`run`'s no-follow guard), before anything is copied;
+   - a published Store whose `opengwasdb info` format is not `REQUIRED_FORMAT_VERSION` (0.3.0), before staging;
+   - a `validation.yaml` that `register` did not write;
+   - a runtime `runtime.verify_runtime_for_releases` refuses for the steps to run;
+   - a filesystem on which a probe file beside the Store cannot be copied by `cp --reflink=always`, naming it (`stat -f -c %T`). There is no fallback to a full copy;
+2. through `staged_publication.publish`: copies `records/` to a forced run's snapshot, removes the records of the steps it reruns (they are in the snapshot), and stages the published Store at `store.opengwasdb.partial` with `cp -a --reflink=always`;
+3. runs the planned steps, then the phase's `validate` (with its `--ld-store` pairs), through `run.execute_step`. A step that does not succeed is refused, a failed `validate` naming its errors, and each record is held to its planned argv (`register.check_argv_drift`). A Store `publish_rewrite` published (a `rewrite` block in its register record) is held to ADR 0043's deviation rule (`publish_rewrite.judge_findings`): a warning refuses it unless it is a recorded deviation or one the publication carried (`rewrite.carried_warnings`, once per recorded copy);
+4. writes `publication.json` with `replaced_store: archive` and the snapshot, through `staged_publication.republication`, and calls `complete_publication`: the old Store, its records and its Validation Record go under `replaced/<UTC>/`.
+
+For a completed Hybrid (`layout: hybrid`, the published phase reference-completed) the plan begins with `recount-top-hits <Store>` (`completion-recount-top-hits` in a completion phase; ADR 0044's 26 Nov 2026 amendment, opengwasdb#509): it corrects `n_hits_5e8`, `n_hits_5e6` and `n_hits_5e4` in place and regenerates the overview, and runs before the addable steps. It accompanies additions and does not make a release this mode's; `plan()` never holds it, so the runtime guard does not probe for the command and a missing one fails the step. Its record is an input of the new register record like any step this run ran.
+
+Any failure before the marker (a refusal, a failed step, a validation error, Ctrl-C, SIGTERM) removes the staged copy (unlinking, never following, a symlink), copies the failed step's record to `work/post-additions-refused-<UTC>-<step>.json`, and restores `records/` from the snapshot, whose path is known before it is copied; Ctrl-C and SIGTERM are ignored while it runs. The entry point exits 1 for a refusal. For an interruption it exits 130 and names the state left: rolled back before the marker, pending while the marker stands (the next `pixi run release <ID>` finishes it), or published once the marker is removed. The published Store and `validation.yaml` are untouched before the marker.
+
+The Validation Record is the published one with what this run measured: `status`, `checks.store`, `warnings` and `errors` from this `validate` (plus `register`'s resolver-engine warning), `validator`, `observed.format_version`, `store_bytes` and `validate_status`, `has_rho` when `rho` was added, `has_clumps`, `n_loci_5e8` and `n_unclumped_5e8` when `clump` was, and `build_elapsed_s` with this run's step times in place of the rerun steps'. `build_environment` keeps the engine that wrote the Store; its `engines` drop the rerun steps and add this run's. `acceptance`, a rewrite's `rewrite` block and every other block are carried, and a `post_additions` list gains an entry: `added_at`, `steps` (the steps added or regenerated), `records` (every record this run wrote), `release_id` and `replaced_archive`. The phase's register record keeps the published `inputs` but those this run reran, then adds this run's records, and carries `rewrite` and `post_additions`.
+
+The publication finishes through `release.finish_publication`, as every entry-point publication does: `complete_publication`, then Snakemake's metadata for every record the addition's register lists, in one `--cleanup-metadata` call (`release.publication_outputs`), then the marker, last. A step now follows an added one, so its recorded inputs changed and Snakemake's `input` rerun trigger would otherwise fire. Recovery runs the same function, so an interrupted cleanup keeps the marker and is replayed by the next run.
+
+Every unforced release a run requests is assessed, `all`'s included. Once a release is the mode's (it lacks an addable step, or the mode published it: `post_additions` in its register record), a changed Store-writing argv or membership, or a register record that did not succeed, is refused, naming it, whatever Snakemake would schedule. `post_additions.current` holds when the mode published the release, every step of its phase has current evidence, and the bundle still plans its Store. For such a release the Snakefile makes `ancient` only the edges between post steps and into the register (`settled`), so `pixi run release all` and a direct `snakemake` do not reschedule a later step whose record is now older than the added record before it (an Indexed Variant Subset, a completed Store's Observed-View Check). A build's, a completion's or a manifest's inputs are never settled, so a newer build manifest still schedules the build, which an unforced run refuses. Nothing is settled under a run that forces the release (`--forceall`, `--forcetargets`, a rule, or a `--forcerun` path under it, as `--config force=1` passes), so a forced run schedules the whole chain. A named release the mode published with nothing missing is handed to Snakemake, which finds nothing to do. A release the mode never published is decided by mtimes, as before.
 
 **Before the marker, a crash leaves the old release in place.** The Store and `validation.yaml` are untouched, and the leftover snapshot makes the next run of that release refuse to start, forced or not (decided in review on 7 Oct 2026). The refusal names the snapshot and the two resolutions, which an operator chooses and the entry point carries out:
 - `pixi run release <ID> --resolve-snapshot restore` replaces `records/` with the snapshot, when the killed run had already rewritten records;
@@ -636,7 +764,7 @@ One Snakefile for the whole registry, not one per release. It scans `stores/*/` 
 Dependency wiring only, per ADR 0023. It contains no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
 
 ```text
-build_manifest ──> build ──> top_hits (Ragged only) ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
+build_manifest ──> build ──> top_hits (Ragged only) ──> rho ──> clump ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). **It reruns when its content would change, not when its input's mtime does** (#339): its input function marks the bundle's `analyses.tsv` `ancient()` when `build_manifest_is_current` holds, so a fresh checkout or a rewrite with the same bytes schedules nothing, and a changed `analyses.tsv` still schedules it and the build phase (the published guard then refuses an unforced run). The comparison is made per job, in memory, and never writes `work/`. A content mismatch forces the rerun whatever the mtimes: Snakemake's own decision is by mtime, so for each release the run names, and every registered parent it derives from, whose `work/` outputs exist but are not current (changed content, an unreadable or corrupt sidecar, other line endings), the entry point adds the release's `work/analyses.tsv` to its internal `--forcerun` list, in the dry run, the preflight and the real run. A stale parent is rerun, never replaced: an unforced run of a published parent with changed membership is refused by the published guard. An unforced run of a published release with changed membership is refused the same way; an unpublished one rebuilds. Nothing is written while the DAG is built. Only the entry point does this: a direct `snakemake` run still decides `build_manifest` by mtime for a changed manifest (it is `ancient` only when the content is unchanged), so there a changed `analyses.tsv` with an older mtime schedules nothing. `build.yaml` and `release.yaml` are not Snakemake inputs of any rule. **Two rules together.** An unforced run reruns `build_manifest` only when its content would change. A forced named release always rebuilds, whatever its mtimes or content: the entry point adds Snakemake `--forcerun` itself (`release.forced_run_outputs`) for each forced release's build manifest, where its first step reads one, and its first planned step's record. The whole build phase reruns, and through its `register` record the completion phase of a release that completes its own Store. Only the ids `--config force=1` applies to are forced, in the dry run and the real run alike; an operator still cannot pass `--forcerun` (`UNSAFE_OPTIONS`). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A release with a carried Column Map also has a `column_map` rule, which stages the map where the build's `--column-map` names it (#292); it writes no record, like `build_manifest`. A release that records its regions also has a `sparse_regions` rule, which copies `sidecars/sparse_regions.tsv` to `work/sparse_regions.tsv`, the file `plan()` names as its build's `--regions`; only the step that reads it depends on it, so a release that records none, and every completion phase, schedules no such job (#459). A run whose staged copy is not the bundle's bytes restages it before the build, for every release it will build -- a dependency parent's included -- as the entry point already forces a stale derived manifest (#339): Snakemake decides by mtime, so a run would otherwise build from a copy of a table since changed (`release.stale_regions_outputs`). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
@@ -644,12 +772,12 @@ build_manifest ──> build ──> top_hits (Ragged only) ──> rho ──> 
 A release that completes its own Store (ADR 0037) runs both phases in one run. Its build phase is the chain above. Its completion phase then starts from the build phase's `register` record, because it completes the Store that phase published:
 
 ```text
-register ──> complete ──> completion-rho ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-observed-view-check ──> completion-register
+register ──> complete ──> completion-rho ──> completion-clump ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-observed-view-check ──> completion-register
 ```
 
 Completion-phase steps share the `step` rule, under their own `{step}` values. `completion-register` is a rule of its own, `completion_register`, which calls `register_release(..., phase="completion")`, passing `force` only in a forced run (`register.forced_completion`, below). `all` and the id's target alias depend on that record, so naming the id runs both phases. The existing rules' bodies, and the inputs of every build-phase job, are exactly what they were before ADR 0037. Snakemake's default rerun triggers compare a rule's code and a job's input set with what it recorded, so a Store built before then is not rescheduled when its bundle gains a `complete` block (#305).
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is planned for Dense and Hybrid Stores (a Hybrid's Rho Matrix is built in its Dense Component by `build-dense-rho <hybrid release>`, #529) and refused for Ragged, `clump` is planned for every layout and needs `post.ld_stores`, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 **The validate step's worker count (stores#358).** `opengwasdb validate --n-workers N` (opengwasdb#315) spreads each Dense grid's band pass across an ordered fork pool and reports exactly what one process reports, so a published Store is validated in parallel with no change to its verdict. The planned `validate` step carries `--n-workers N` with the count the release declares as `n-workers` in its `build.options`; a completion phase's `completion-validate` takes the `complete.options` count first and the build's otherwise (`plan.declared_worker_count`). `build-dense-top-hits` takes the same flag (opengwasdb#313), which an operator passes when running it by hand to add an index to an existing Dense Store (a Dense build plans no standalone step, stores#357); `build-ragged-top-hits` takes none and is planned without it. A release that declares none gets no flag, so the engine's default of one worker runs: the planner invents no count. A declared count that is not a positive integer is refused when the plan is made. The step's argv is not among those the amendment check compares (`build`, `complete` and the variant-reference stage), so a published release's plan changing here amends nothing. A Ragged or Hybrid release declaring the option is given it too: the flag is the same command's, and the engine reads it as the band-pass pool that only a Dense grid fills.
 
@@ -822,10 +950,10 @@ derived   store_id  label  layout  completion_state  status  derived_from  trial
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
 observed  format_version  n_variants  n_associations  store_bytes
-          has_hm3  has_rho  n_top_hits  build_elapsed_s  validate_status
+          has_hm3  has_rho  has_clumps  n_top_hits  build_elapsed_s  validate_status
 ```
 
-`has_hm3` and `has_rho` are `true`, `false`, or empty when the Validation Record
+`has_hm3`, `has_rho` and `has_clumps` are `true`, `false`, or empty when the Validation Record
 does not say; `n_top_hits` is the recorded mapping as compact JSON, empty while
 it is `null` (#502). `bundle.observed_flag` and `bundle.top_hit_counts_text` are
 the one rule for both, which the Analysis Catalog reads too.
@@ -1011,7 +1139,7 @@ this section records only how the workflow produces it.
 
 Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `n_associations`, `association_coverage` and `reference_assembly` come from that JSON under exactly those keys, with the same precedence `n_variants` and `n_analyses` use; a key opengwasdb does not print is `null`, never a derived value or one read from the Store (#322). A key present with a malformed value fails registration: `n_associations` must be a non-negative integer and the other two non-empty strings, so "opengwasdb reported something else" is never recorded as "opengwasdb reported nothing". A reported `association_coverage` must also equal the release's declaration: the builder was given that value (`--association-coverage`), so a Store at another coverage is not the Store the bundle describes, and `register` refuses it with `AssociationCoverageMismatchError`, naming the reported value and the declared one, before anything is written (#341). A record written before opengwasdb printed the key keeps its `null`: an absent key is an older runtime's output, not a mismatch.
 
-`register` also records four facts about the Store it publishes, none of them read from the Store (#502). `store_bytes` is the size on disk of the Store being published, the staged one that publication renames into place unchanged or the one already there, summed from a stat of each file; a stat opens no Store file, so it is no Store read under ADR 0023. `has_hm3` and `has_rho` come from the publishing phase's plan and its step records: `true` when the Build Recipe plans the HM3 Indexed Variant Subset step or the `rho` step and it succeeded. A recipe that declares no HM3 subset records `has_hm3: false`; one that runs no `rho` step records `has_rho: null`, because a Rho Matrix built by hand outside the recipe is not recorded. `n_top_hits` is `null`, since no step prints a top-hit count, until opengwas/opengwasdb#488's `opengwasdb info --json` reports the counts; `n_variants` and `n_associations` become complete from the same command. The schema defines each field and its `null`.
+`register` also records four facts about the Store it publishes, none of them read from the Store (#502). `store_bytes` is the size on disk of the Store being published, the staged one that publication renames into place unchanged or the one already there, summed from a stat of each file; a stat opens no Store file, so it is no Store read under ADR 0023. `has_hm3` and `has_rho` come from the publishing phase's plan and its step records: `true` when the Build Recipe plans the HM3 Indexed Variant Subset step or the `rho` step and it succeeded. A Hybrid records `has_rho` as a Dense Store does. A recipe that declares no HM3 subset records `has_hm3: false`; one that runs no `rho` step records `has_rho: null`, because a Rho Matrix built by hand outside the recipe is not recorded. `n_top_hits` is `null`, since no step prints a top-hit count, until opengwas/opengwasdb#488's `opengwasdb info --json` reports the counts; `n_variants` and `n_associations` become complete from the same command. The schema defines each field and its `null`.
 
 The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, to which opengwasdb v0.6.0 adds `findings` (opengwas/opengwasdb#378): one `{"rule", "severity", "target", "message"}` per record of the run, each error, warning and skipped rule, from which `errors` and `warnings` are projected. The record follows from `ok`, `errors` and `warnings` exactly:
 - `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;
@@ -1033,6 +1161,13 @@ Nothing in the block feeds `status`, `checks.store`, `warnings` or `errors`, wit
 `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not otherwise judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it. The one judgement it now makes about that report is the coverage mismatch above, and it is a comparison of two of the registry's own facts — what the release declares and what the builder says it wrote — not a verdict on the science.
 
 The record's top-level `status` is the release-level verdict, and the generated master list publishes that value and no other. A per-check entry in `checks` describes one check and cannot override the record: a record reads `status: failed` precisely when a check failed, and publishing the passing check in its place is the "wrong answer that looks like a right answer" CONTRIBUTING names as the worst outcome. A release with no Validation Record publishes an empty verdict.
+
+**A rewritten release's record** (#533, [ADR 0043](../adr/0043-a-rewritten-release-is-published-through-the-registry.md)) is written by `ogstores.publish_rewrite`, not `register`, in the same shape:
+- **Verdict.** `status`, `checks.store`, `warnings` and `errors` are this run's `validate --format json`, read as above. A published record never holds an error, and holds only recorded deviations and carried warnings as warnings (Safety, *Publishing a rewritten release*).
+- **Engines.** `validator.version` names the engine that ran `validate`, and `build_environment` the one that ran the rewrite, with both in `engines`.
+- **`observed`.** It is the replaced record's, carried, because the rewrite answers every question its source does: the engine's digest proof refuses it otherwise. `format_version` is read from `opengwasdb info`, `store_bytes` is measured from the staged release, and `validate_status` is this run's. `build_elapsed_s` is the sum the schema defines: the replaced record's, plus the rewrite's and this validation's elapsed seconds, or `null` when the replaced record's is. For a `--convert-legacy` conversion, `n_associations` and `n_top_hits` are `null`: it masks every association whose SE is above 65,504, so the build's counts no longer describe it, and nothing reports the new ones.
+- **Kept and added.** `acceptance` is passed on, and `replaced` names the archive. A `rewrite` block names the command, the new and source `release_id` and `format_version`, `convert_legacy`, the `deviations` (the recorded rules the validator reported as warnings) and the `carried_warnings` (the messages of warnings the replaced record already carried, apart from the deviations).
+- **Release Status.** It is left as it is.
 
 ## Tests
 
@@ -1086,15 +1221,18 @@ bounded Dense-validation memory work. `pixi.lock` resolves it with Python 3.12,
 
 Two consequences are contract, not incidental:
 
-- **Reference Completion needs a format-0.2.2 observed parent.** The pinned
-  engine completes only a `0.2.2` Store, the format every builder and completion
+- **Reference Completion needs a format-0.2.2 or later observed parent.** The pinned
+  engine completes a `0.2.2`, `0.2.3` or `0.3.0` Store (a `0.3.0` one may be a
+  rebuild or a published rewrite, ADR 0043, #527), the format every builder and completion
   writes since indel ALIDs spell the reference allele first (opengwas/opengwasdb
   #381, ADR 0079; ADR 0038 §4). A `0.2.1`, `0.2.0` or `0.1.0` parent is readable
-  but not completable, and a converted one is no better, because the converter
-  writes `0.2.0`. The runtime guard refuses the run before any write when a
+  but not completable until it is rebuilt or rewritten to `0.3.0` (ADR 0043). The runtime guard refuses the run before any write when a
   *scheduled* `complete` job would consume such a two-id parent, and directs the
   operator to [the release runtime](../runtime.md): the parent is **rebuilt**
-  with this engine. The Stores this affects are listed there (OGS-00006, -07,
+  with this engine, or rewritten to `0.3.0` and published with `publish-rewrite`
+  (ADR 0043). A rewrite that records `variant_table.indel_order` is the limit: it is
+  refused for own-id completion (below) and awaits a rebuild from source. The accepted
+  list in the refusal message is `0.2.2`, `0.2.3` or `0.3.0` (#527). The Stores this affects are listed there (OGS-00006, -07,
   -24, -25 and -26, built at `0.2.1` by engine 0.9.0, and every `0.2.0` and `0.1.0` Store, which that page lists by id);
   their data and records are unchanged. A same-run `build`/`complete` of the
   parent is a fresh `0.2.2` Store and is not gated; a missing parent that is not

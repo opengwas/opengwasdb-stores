@@ -17,12 +17,12 @@ that step's record file, never the Store directory -- a half-written Store
 must not satisfy a rule. It also materialises the derived build manifest by
 calling `ogstores.manifest`; it carries no filtering logic itself (ADR 0025).
 
-    build_manifest --> build (or complete) --> top_hits (Ragged; a Dense build writes it inline) --> rho --> overview --> validate --> register
+    build_manifest --> build (or complete) --> top_hits (Ragged; a Dense build writes it inline) --> rho --> clump --> overview --> validate --> register
 
 A release that completes its own Store (ADR 0037) then runs its completion
 phase from that `register` record:
 
-    register --> complete --> completion-rho --> completion-overview --> completion-validate
+    register --> complete --> completion-rho --> completion-clump --> completion-overview --> completion-validate
         --> completion-observed-view-check --> completion-register
 
 The `build_manifest` rule feeds every build-phase command: `plan()` resolves
@@ -48,13 +48,14 @@ differed only in which name they looked up. The chain's shape lives in
 
 from __future__ import annotations
 
+import functools
 import os
 from pathlib import Path
 
 from snakemake.exceptions import WorkflowError
 
 # `ogstores` is installed editable into the pixi environment (#257).
-from ogstores import amendment, bundle, index, manifest, paths, register, resources, run, runtime
+from ogstores import amendment, bundle, index, manifest, paths, post_additions, register, resources, run, runtime
 from ogstores.plan import (
     BUILD_PHASE,
     COMPLETION_PHASE,
@@ -77,7 +78,7 @@ ALL_STORE_IDS: list[str] = sorted([
     if d.is_dir() and paths.is_valid_store_id(d.name) and (d / "release.yaml").is_file()
 ]) if REGISTRY_ROOT.is_dir() else []
 
-EXECUTION_STEPS = ["variant-reference", "build", "complete", "top-hits", "rho", "overview", "validate"]
+EXECUTION_STEPS = ["variant-reference", "build", "complete", "top-hits", "rho", "clump", "overview", "validate"]
 # Declared Indexed Variant Subsets (#209) add one dynamically named step per
 # declaration, `indexed-subset-<name>`, so the `{step}` wildcard admits that
 # bounded prefix in addition to the fixed execution steps.
@@ -86,7 +87,7 @@ INDEXED_SUBSET_STEP_PATTERN = "indexed-subset-[A-Za-z0-9._-]+"
 # phase's post steps as `completion-<step>`, apart from its build phase's.
 # Its first step is `complete`, and its register is a rule of its own.
 COMPLETION_STEPS = [
-    *(completion_step_name(name) for name in ("rho", "overview", "validate")),
+    *(completion_step_name(name) for name in ("rho", "clump", "overview", "validate")),
     OBSERVED_VIEW_CHECK_STEP,
 ]
 COMPLETION_SUBSET_STEP_PATTERN = completion_step_name(INDEXED_SUBSET_STEP_PATTERN)
@@ -117,19 +118,56 @@ def record(store_id: str, step: str, root: Path | str | None = None) -> str:
     return str(paths.record_path(store_id, step, root=root or get_artifact_root()))
 
 
-def step_input(wildcards) -> list[str]:
+@functools.cache
+def additions_current(store_id: str, root: str) -> bool:
+    """Whether the release's in-place additions are published and its evidence current (ADR 0044)."""
+    return post_additions.current(get_bundle(store_id), root)
+
+
+def forced(store_id: str, root: str) -> bool:
+    """Whether this run forces anything of the release: `--forceall`, `--forcetargets`, or a `--forcerun` under it or of a rule."""
+    settings = workflow.dag_settings
+    if settings is None:
+        return False
+    if settings.forceall or settings.forcetargets:
+        return True
+    release_dir = f"{paths.store_dir(store_id, root=root)}/"
+    return any("/" not in str(item) or str(item).startswith(release_dir) for item in settings.forcerun)
+
+
+def settled(wildcards, record_p: str):
+    """A post step's predecessor record, `ancient` when the release's in-place additions are current.
+
+    An addition leaves a later post step's record (an Indexed Variant Subset,
+    an Observed-View Check) older than the added record now before it, so by
+    mtime Snakemake would reschedule it, and the published-Store guard would
+    refuse the run (ADR 0044). Only the edges between post steps, and into the
+    register, are settled: a build's or a manifest's inputs never, and nothing
+    under a run that forces the release, so a newer manifest and `force=1`
+    schedule what they always did.
+    """
+    if additions_current(wildcards.store_id, wildcards.root) and not forced(wildcards.store_id, wildcards.root):
+        return ancient(record_p)
+    return record_p
+
+
+def step_input(wildcards) -> list:
     """Predecessor of a step: the prior record, a register record, or raw sources.
 
     The first planned step of a derived release takes its parent's `register`
     record, which is what sequences a lineage without a hand-written batch order.
     The first step of a completion phase takes its own build phase's `register`
     record, because it completes the Store that phase published (ADR 0037).
+    A post step's record predecessor that is itself a post step's is `settled`.
     """
     steps = get_steps(wildcards.store_id, wildcards.root)
     names = [s.name for s in steps]
     idx = names.index(wildcards.step)
     if idx > 0 and steps[idx - 1].phase == steps[idx].phase:
-        return [record(wildcards.store_id, names[idx - 1], wildcards.root)]
+        previous = record(wildcards.store_id, names[idx - 1], wildcards.root)
+        if names[idx - 1] in amendment.STORE_WRITING_STEPS:
+            return [previous]
+        return [settled(wildcards, previous)]
     if idx > 0:
         return [record(wildcards.store_id, REGISTER_STEPS[steps[idx - 1].phase], wildcards.root)]
 
@@ -171,12 +209,12 @@ def check_staged_column_map(store_id: str, root: str, inputs) -> None:
         raise WorkflowError(str(exc))
 
 
-def last_step_record(wildcards, phase: str) -> str:
+def last_step_record(wildcards, phase: str) -> list:
     """The record a phase's register consumes: the phase's last planned step's."""
     names = [s.name for s in get_steps(wildcards.store_id, wildcards.root) if s.phase == phase]
     if not names:
         raise WorkflowError(f"{wildcards.store_id} has no {phase} phase to register")
-    return record(wildcards.store_id, names[-1], wildcards.root)
+    return [settled(wildcards, record(wildcards.store_id, names[-1], wildcards.root))]
 
 
 wildcard_constraints:

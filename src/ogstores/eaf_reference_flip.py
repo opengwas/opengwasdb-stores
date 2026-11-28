@@ -720,7 +720,7 @@ def _rename(source: Path, dest: Path) -> None:
 def _fsync_path(path: Path) -> None:
     """fsync a file or directory, raising: durability that failed must be said.
 
-    Deliberately not `run._fsync_dir`, which swallows every exception: the
+    Deliberately not `run.fsync_dir`, which swallows every exception: the
     recovery evidence is only worth keeping if a failure to persist it is loud
     enough to stop this run from deleting it.
     """
@@ -1334,7 +1334,7 @@ def _refuse_existing_receipt(
 def _write_receipt(record: dict[str, Any], record_path: Path) -> None:
     """Atomically rewrite the receipt, fsyncing the file and then its directory.
 
-    `run._write_record_atomically` is not used: it swallows a failure to fsync the
+    `run.write_record_atomically` is not used: it swallows a failure to fsync the
     directory, and a receipt that may not have reached the disk is exactly the
     evidence this tool must not lose without saying so.
     """

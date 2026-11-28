@@ -1,30 +1,50 @@
-status: passed
-validated_at: '2026-11-02T10:41:20.919052Z'
+status: passed_with_warnings
+validated_at: '2026-11-26T12:43:41.666441Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@44f25a96fb43044a983e300a038a54ab1930e782
+  version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
 build_environment:
-  opengwasdb_version: 0.3.2
-  opengwasdb_commit: 44f25a96fb43044a983e300a038a54ab1930e782
+  opengwasdb_version: 0.20.0
+  opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
   python_version: 3.12.15
-  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+  platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
+  engines:
+  - opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
+    opengwasdb_version: 0.20.0
+    steps:
+    - rewrite-release
+  - opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
+    opengwasdb_version: 0.23.0
+    steps:
+    - completion-rho
+    - completion-clump
+    - completion-overview
+    - completion-validate
 observed:
-  format_version: 0.2.0
+  format_version: 0.3.0
   n_analyses: 241
   n_variants: 11650615
   n_associations: null
   association_coverage: gwas
   reference_assembly: null
-  store_bytes: 8186328068
+  store_bytes: 8346603332
   has_hm3: true
-  has_rho: null
+  has_rho: true
+  has_clumps: true
+  n_loci_5e8: 191
+  n_unclumped_5e8: 842
   n_top_hits: null
-  build_elapsed_s: 53992.996
-  validate_status: passed
+  build_elapsed_s: 56756.285
+  validate_status: passed_with_warnings
   completion_state: reference_completed
 checks:
-  store: passed
-warnings: []
+  store: passed_with_warnings
+warnings:
+- 'data.zarr/se: 3046179 of 3074915 se exceptions (99.07%) are exactly what a float16
+  plane stores, against 0.01% by chance: the plane was rounded to float16 before its
+  encoding plan was chosen (issue #355); rebuild the release [a deviation recorded
+  by ogdb rewrite-release --convert-legacy, which converted this release from format_version
+  0.2.0 (release OGS-00015-completed); a rebuild from source fixes it]'
 errors: []
 acceptance:
   recorded_at: null
@@ -40,5 +60,38 @@ acceptance:
   reference_overlap: null
   store_composition: null
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00015/replaced/20261102T104120Z
-  replaced_at: '2026-11-02T10:41:20.919052Z'
+  archive: /data/opengwasdb/stores/OGS-00015/replaced/20261126T123913Z
+  replaced_at: '2026-11-26T12:43:41.666441Z'
+rewrite:
+  record: /data/opengwasdb/stores/OGS-00015/records/rewrite-release.json
+  staged: /data/opengwasdb/stores/OGS-00015/store.opengwasdb.0.3.0
+  command:
+  - /data/opengwasdb/work/orchestrate/opengwasdb-450/worktrees/stores522/.pixi/envs/workflow/bin/opengwasdb
+  - rewrite-release
+  - /data/opengwasdb/stores/OGS-00015/store.opengwasdb
+  - /data/opengwasdb/stores/OGS-00015/store.opengwasdb.0.3.0
+  - --convert-legacy
+  - --not-lifted
+  - --n-workers
+  - '16'
+  convert_legacy: true
+  release_id: 0ab1573e-11a4-4990-b189-dd7ac98f6280
+  format_version: 0.3.0
+  source_release_id: OGS-00015-completed
+  source_format_version: 0.2.0
+  deviations:
+  - side_tables.se_exceptions_rounded
+  carried_warnings: []
+post_additions:
+- added_at: '2026-11-26T12:43:41.666441Z'
+  steps:
+  - completion-rho
+  - completion-clump
+  - completion-overview
+  records:
+  - /data/opengwasdb/stores/OGS-00015/records/completion-rho.json
+  - /data/opengwasdb/stores/OGS-00015/records/completion-clump.json
+  - /data/opengwasdb/stores/OGS-00015/records/completion-overview.json
+  - /data/opengwasdb/stores/OGS-00015/records/completion-validate.json
+  release_id: 0ab1573e-11a4-4990-b189-dd7ac98f6280
+  replaced_archive: /data/opengwasdb/stores/OGS-00015/replaced/20261126T123913Z

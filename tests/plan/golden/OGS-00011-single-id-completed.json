@@ -32,6 +32,36 @@
     ]
   },
   {
+    "name": "rho",
+    "argv": [
+      "opengwasdb",
+      "build-dense-rho",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "clump",
+    "argv": [
+      "opengwasdb",
+      "clump",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
     "name": "indexed-subset-hm3",
     "argv": [
       "opengwasdb",
@@ -76,7 +106,9 @@
       "--format",
       "json",
       "--n-workers",
-      "10"
+      "10",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
@@ -85,8 +117,6 @@
   },
   {
     "name": "complete",
-    "phase": "completion",
-    "published_store_arg": 2,
     "argv": [
       "opengwasdb",
       "complete-hybrid",
@@ -106,11 +136,44 @@
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
-    ]
+    ],
+    "phase": "completion",
+    "published_store_arg": 2
+  },
+  {
+    "name": "completion-rho",
+    "argv": [
+      "opengwasdb",
+      "build-dense-rho",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "phase": "completion"
+  },
+  {
+    "name": "completion-clump",
+    "argv": [
+      "opengwasdb",
+      "clump",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "phase": "completion"
   },
   {
     "name": "completion-indexed-subset-hm3",
-    "phase": "completion",
     "argv": [
       "opengwasdb",
       "build-indexed-subset",
@@ -129,11 +192,11 @@
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
-    ]
+    ],
+    "phase": "completion"
   },
   {
     "name": "completion-overview",
-    "phase": "completion",
     "argv": [
       "opengwasdb",
       "regenerate-overview",
@@ -144,11 +207,11 @@
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
-    ]
+    ],
+    "phase": "completion"
   },
   {
     "name": "completion-validate",
-    "phase": "completion",
     "argv": [
       "opengwasdb",
       "validate",
@@ -156,17 +219,18 @@
       "--format",
       "json",
       "--n-workers",
-      "24"
+      "24",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
     ],
-    "outputs": []
+    "outputs": [],
+    "phase": "completion"
   },
   {
     "name": "completion-observed-view-check",
-    "phase": "completion",
-    "published_store_arg": 2,
     "argv": [
       "opengwasdb",
       "check-observed-view",
@@ -182,6 +246,8 @@
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
     ],
-    "outputs": []
+    "outputs": [],
+    "phase": "completion",
+    "published_store_arg": 2
   }
 ]

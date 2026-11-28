@@ -80,6 +80,28 @@ jobs:
           print(f"installed ogstores {installed} == this checkout's {computed}")
           PY
 
+      # The post-additions and clumps-pipeline suites stage a published Store by
+      # `cp -a --reflink=always` and refuse a filesystem that cannot reflink (ADR
+      # 0044: never a full copy). The runner's /tmp is ext4, which cannot, so the
+      # tests get a temporary directory on a loop-mounted XFS image made with
+      # `reflink=1`. The route is unchanged and the tests still stage by real
+      # reflink; one test still shows the route refusing a filesystem without it.
+      - name: Give the tests a reflink-capable temporary directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends xfsprogs
+          truncate -s 4G "$RUNNER_TEMP/reflink.img"
+          sudo mkfs.xfs -q -m reflink=1 "$RUNNER_TEMP/reflink.img"
+          sudo mkdir -p /mnt/reflink
+          sudo mount -o loop "$RUNNER_TEMP/reflink.img" /mnt/reflink
+          sudo chown "$(id -u):$(id -g)" /mnt/reflink
+          # Fail here, not in a test, if the mount cannot reflink.
+          echo a > /mnt/reflink/probe-src
+          cp --reflink=always /mnt/reflink/probe-src /mnt/reflink/probe-dst
+          rm /mnt/reflink/probe-src /mnt/reflink/probe-dst
+          echo "TMPDIR=/mnt/reflink" >> "$GITHUB_ENV"
+
       - name: Run the lightweight test suites, except the release-stack ones
         run: pixi run --environment dev test --skip-release-stack
 
