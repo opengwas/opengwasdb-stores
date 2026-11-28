@@ -2176,6 +2176,13 @@ def _check_sparse_regions(bundle: Bundle) -> list[str]:
     return [bundle.sparse_regions_defect] if bundle.sparse_regions_defect else []
 
 
+def _check_increments(bundle: Bundle, registry_root: Path | str | None) -> list[str]:
+    """The Increment Bundles under ``increments/`` (ADR 0045); imported here, as it imports this module."""
+    from ogstores import increment
+
+    return increment.check(bundle, registry_root)
+
+
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -2211,6 +2218,7 @@ def check(
         (QUALITY_CHECKS_SIDECAR, lambda: (_check_quality_checks(bundle, analyses), [])),
         (SPARSE_REGIONS_SIDECAR, lambda: (_check_sparse_regions(bundle), [])),
         ("Column Map", lambda: _check_column_map(bundle, analyses)),
+        ("increments", lambda: (_check_increments(bundle, registry_root), [])),
     )
     for label, stage in stages:
         try:

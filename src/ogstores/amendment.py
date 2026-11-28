@@ -67,13 +67,16 @@ tolerates the same pair (`plan.planned_before_admission_record`).
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import shutil
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 from ogstores import bundle as bundle_module
+from ogstores import increment as increment_module
 from ogstores import manifest, paths, run
 from ogstores.bundle import Bundle
 from ogstores.plan import (
@@ -336,6 +339,52 @@ def _excluded(sidecar: Path) -> set[str]:
     return {entry["analysis_id"] for entry in dropped}
 
 
+#: What every membership refusal says a change under the same id must be (ADR 0045).
+INCREMENT_POINTER: str = (
+    "a membership change under this Store id is an accepted Increment Bundle (ADR 0045), "
+    "and `--config force=1` rebuilds from the bundle as it stands"
+)
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _recorded_work_files(b: Bundle, manifest_p: Path, sidecar_p: Path) -> list[str]:
+    """The `work/` files must be the ones the last published increment recorded (ADR 0045 §5).
+
+    The increment route rewrites both files at publication and records their
+    sha256. A file no publication wrote is not a baseline, whatever it holds.
+    """
+    published = [inc for inc in increment_module.load(b) if inc.status == "published"]
+    if not published:
+        return []
+    last = published[-1]
+    block = last.document.get("published") or {}
+    name = increment_module.directory_name(last.number)
+    changes: list[str] = []
+    for path, key in ((manifest_p, "manifest_sha256"), (sidecar_p, "exclusions_sha256")):
+        if not path.is_file():
+            continue
+        actual = _sha256(path)
+        if actual != block.get(key):
+            changes.append(
+                f"{b.store_id}: membership: {path} is not the file increment {name} recorded "
+                f"(sha256 {actual}, recorded {block.get(key)!r}): no publication wrote it"
+            )
+    return changes
+
+
+def membership_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
+    """How the bundle's membership differs from its published Store's, the `work/` files (ADR 0025, ADR 0045).
+
+    Empty when the bundle materialises to exactly the published build manifest
+    and excluded Analyses, and, once an increment has published, when those
+    files are the ones it recorded. An open Increment Bundle touches neither.
+    """
+    return _membership_changes(b, Path(artifact_root))
+
+
 def _membership_changes(b: Bundle, root: Path) -> list[str]:
     """How the build manifest the bundle makes now differs from the one its Store was built from."""
     store_id = b.store_id
@@ -343,6 +392,7 @@ def _membership_changes(b: Bundle, root: Path) -> list[str]:
     published_sidecar = paths.build_manifest_sidecar_path(store_id, root=root)
     if not published.is_file():
         return [f"{store_id}: membership cannot be compared: no derived build manifest at {published}"]
+    recorded = _recorded_work_files(b, published, published_sidecar)
     try:
         excluded_then = _excluded(published_sidecar)
     except ValueError as exc:
@@ -355,7 +405,7 @@ def _membership_changes(b: Bundle, root: Path) -> list[str]:
             return [f"{store_id}: membership: {b.analyses_path} no longer makes a build manifest: {exc}"]
         excluded_now = _excluded(current_sidecar)
         if current.read_bytes() == published.read_bytes() and excluded_now == excluded_then:
-            return []
+            return recorded
         current_columns, current_rows = _manifest_rows(current)
         published_columns, published_rows = _manifest_rows(published)
 
@@ -372,7 +422,120 @@ def _membership_changes(b: Bundle, root: Path) -> list[str]:
         details.append(f"columns {published_columns} became {current_columns}")
     if not details:
         details.append("the build manifest's rows were reordered")
-    return [f"{store_id}: membership: {'; '.join(details)}"]
+    return [*recorded, f"{store_id}: membership: {'; '.join(details)}; {INCREMENT_POINTER}"]
+
+
+def _derived(analyses_path: Path) -> tuple[list[str], dict[str, dict[str, str]], list[str], set[str]]:
+    """The derived build manifest of `analyses_path`: columns, rows by id, their order, excluded ids."""
+    with tempfile.TemporaryDirectory() as scratch:
+        derived, sidecar = Path(scratch) / "analyses.tsv", Path(scratch) / "exclusions.json"
+        manifest.materialise_build_manifest(analyses_path, derived, sidecar)
+        columns, rows = _manifest_rows(derived)
+        return columns, rows, list(rows), _excluded(sidecar)
+
+
+def increment_changes(
+    b: Bundle,
+    number: int,
+    artifact_root: Path | str,
+    *,
+    splice_report: dict[str, Any] | None = None,
+) -> list[str]:
+    """Why accepted increment `number` may not be published on `b`'s published Store (ADR 0045 §5).
+
+    Empty only when the bundle still plans its published Store; the increment
+    is its one open increment and is accepted; folding it gives a bundle the
+    contract passes; the folded membership differs from the published `work/`
+    files by exactly the declaration; and, given the splice's report, the
+    splice added and dropped exactly the declared Analyses. A pure function of
+    the bundle, the published `work/` files and the report: no Store is opened.
+    """
+    root = Path(artifact_root)
+    store_id = b.store_id
+    name = increment_module.directory_name(number)
+    # The walk compares membership only once a phase has published; an
+    # increment is only ever published onto a published Store, so compare it here too.
+    changes = list(dict.fromkeys([*published_store_changes(b, root), *_membership_changes(b, root)]))
+    if changes:
+        return changes
+    contract = increment_module.check(b)
+    if contract:
+        return [f"{store_id}: {error}" for error in contract]
+    try:
+        inc = increment_module.get(b, number)
+    except increment_module.IncrementError as exc:
+        return [str(exc)]
+    if inc.status != "accepted":
+        return [f"{store_id}: increment {name} is {inc.status!r}; only an accepted increment is published"]
+
+    try:
+        texts = increment_module.fold(b, number)
+    except increment_module.IncrementError as exc:
+        return [f"{store_id}: increment {name} cannot fold: {exc}"]
+    with tempfile.TemporaryDirectory() as scratch:
+        folded_root = Path(scratch) / store_id
+        shutil.copytree(
+            b.root, folded_root, symlinks=True,
+            ignore=lambda directory, _names: (
+                [increment_module.INCREMENTS_DIRNAME] if Path(directory) == b.root else []
+            ),
+        )
+        for relative, text in texts.items():
+            (folded_root / relative).write_text(text, encoding="utf-8")
+        folded = bundle_module.load(store_id, registry_root=folded_root.parent)
+        errors = list(bundle_module.check(folded))
+        if errors:
+            return [f"{store_id}: the bundle folded with increment {name} fails the contract: {e}" for e in errors]
+        _, new_rows, new_order, new_excluded = _derived(folded_root / "analyses.tsv")
+
+    published_p = paths.build_manifest_path(store_id, root=root)
+    try:
+        old_excluded = _excluded(paths.build_manifest_sidecar_path(store_id, root=root))
+    except ValueError as exc:
+        return [f"{store_id}: membership cannot be compared: {exc}"]
+    _, old_rows = _manifest_rows(published_p)
+    _, inc_rows = inc.rows()
+    added = [r["analysis_id"] for r in inc_rows if r.get(manifest.EXCLUDE_COLUMN, "").strip().lower() != "true"]
+    refused = {r["analysis_id"] for r in inc_rows} - set(added)
+    dropped = set(inc.drop_ids)
+    expected_order = [a for a in old_rows if a not in dropped] + added
+    if new_order != expected_order:
+        changes.append(
+            f"{store_id}: increment {name}: the folded membership is {len(new_order)} Analyses in another "
+            f"order than the published ones less its drops plus its additions ({len(expected_order)})"
+        )
+    for analysis_id, before in old_rows.items():
+        after = new_rows.get(analysis_id)
+        if after is None or analysis_id in dropped:
+            continue
+        keep = {k: v for k, v in before.items() if k != manifest.ANALYSIS_INDEX_COLUMN}
+        if keep != {k: v for k, v in after.items() if k != manifest.ANALYSIS_INDEX_COLUMN}:
+            changes.append(f"{store_id}: increment {name}: kept analysis {analysis_id!r} changed")
+    expected_excluded = old_excluded | dropped | refused
+    if new_excluded != expected_excluded:
+        changes.append(
+            f"{store_id}: increment {name}: the folded exclusions differ from the published ones by "
+            f"{sorted(new_excluded ^ expected_excluded)}, which it does not declare"
+        )
+    if splice_report is not None:
+        reported_added = set(splice_report.get("added") or [])
+        reported_dropped = set(splice_report.get("dropped") or [])
+        if reported_added != set(added):
+            changes.append(
+                f"{store_id}: increment {name}: the splice added {sorted(reported_added)}, "
+                f"not the declared {sorted(added)}"
+            )
+        if reported_dropped != dropped:
+            changes.append(
+                f"{store_id}: increment {name}: the splice dropped {sorted(reported_dropped)}, "
+                f"not the declared {sorted(dropped)}"
+            )
+        if splice_report.get("n_analyses_after") != len(new_order):
+            changes.append(
+                f"{store_id}: increment {name}: the splice reports n_analyses_after "
+                f"{splice_report.get('n_analyses_after')!r}, the folded manifest has {len(new_order)}"
+            )
+    return changes
 
 
 def bundle_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
@@ -472,7 +635,8 @@ def refuse_changed_bundles(
         raise AmendmentError(
             "Refusing to run: these bundles, which complete their own Store, no longer plan the Store "
             "their release published. ADR 0037 allows one amendment, an Observed-Only bundle gaining a "
-            f"`complete` block; another build, completion or membership is a new Store Release (ADR 0004):\n{listed}\n"
+            f"`complete` block; another build or completion is a new Store id (ADR 0004), and a membership "
+            f"change under this id is an accepted Increment Bundle (ADR 0045):\n{listed}\n"
             "Nothing was written. `--config force=1` rebuilds a named release from its bundle as it "
             "now stands (#195)."
         )
@@ -481,7 +645,10 @@ def refuse_changed_bundles(
 
 __all__ = [
     "AmendmentError",
+    "INCREMENT_POINTER",
     "bundle_changes",
+    "increment_changes",
+    "membership_changes",
     "published_store_changes",
     "refuse_changed_bundles",
 ]

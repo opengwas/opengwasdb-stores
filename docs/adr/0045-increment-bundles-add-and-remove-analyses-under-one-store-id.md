@@ -297,7 +297,9 @@ enforce it. For each `increments/<nnnn>/`:
   - Until the increment is published, its ids are absent from the bundle and from earlier
     increments.
   - Each `require_added` id is an admitted row.
-  - Each of its sidecars has the bundle's header and one row per increment row, in order.
+  - Each of its sidecars has the bundle's header, so it can fold. Its `quality_checks.tsv` and
+    `exclusions.tsv` agree with its rows as a bundle's do. When the bundle carries
+    `sidecars/ancestry.tsv`, every increment row has ancestry evidence there.
 - **The drops.** For an open increment, each drop names an Analysis admitted in the bundle,
   with a reason. A drop of an Analysis the same increment adds refuses.
 - **The attestation.** `source-record.json` is present from `accepted` on, with every key §6

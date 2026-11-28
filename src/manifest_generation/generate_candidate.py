@@ -25,6 +25,13 @@ Stages, in order (``--stage``, default ``all``):
                 Composition Rule -- then render the bundle into the Work Root
     emit        check the rendered bundle and emit it (manifest_generation.emit)
 
+**Increment mode** (``--increment``, ADR 0045 §3). The release config is the
+bundle's own, and the frozen Source Inventory a new snapshot. Only the ready
+Analyses whose ``analysis_id`` is in neither the bundle's ``analyses.tsv`` nor
+an earlier increment are resolved and rendered; every other row is left as it
+is. ``emit`` writes them as ``stores/<id>/increments/<nnnn>/``, a candidate
+Increment Bundle, and touches no other bundle file.
+
 ``all`` runs every stage. A later stage run on its own repeats the in-memory
 steps it needs (``prepare``, ``verify``, ``render``) deterministically, and
 never ``freeze``, ``preflight`` or ``resolve``.
@@ -63,6 +70,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import shutil
@@ -107,7 +115,14 @@ from manifest_generation.candidate_workflow import (
     write_resolution_receipt,
 )
 from manifest_generation.completion import blocked_reason
-from manifest_generation.emit import CandidateBundle, EmitError, emit, render_yaml
+from manifest_generation.emit import (
+    CandidateBundle,
+    EmitError,
+    IncrementCandidate,
+    emit,
+    emit_increment,
+    render_yaml,
+)
 from manifest_generation.inventory import freeze_release
 from manifest_generation.resolution_area import (
     DEFAULT_RESOLUTION_ROOT,
@@ -128,7 +143,9 @@ from manifest_generation.source_inventory import (
     read_inventory,
     render_preflight_summary,
 )
+from ogstores import bundle as bundle_module
 from ogstores import engine
+from ogstores import increment as increment_module
 from ogstores.paths import require_valid_store_id
 
 #: The module this entry point runs as, recorded in the bundle's command log.
@@ -162,6 +179,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         f"{RESOLUTION_ROOT_ENV_VAR}, else ogstores.yaml resolution_root, else "
         f"{DEFAULT_RESOLUTION_ROOT})",
     )
+    parser.add_argument(
+        "--increment", action="store_true",
+        help="emit an Increment Bundle of the unseen Analyses into the validated bundle (ADR 0045)",
+    )
+    parser.add_argument("--reason", help="with --increment: why the increment is made")
+    parser.add_argument(
+        "--require-added", action="append", default=[],
+        help="with --increment: an id the increment must admit (repeat for each)",
+    )
     parser.add_argument("--created-at", help=argparse.SUPPRESS)
     parser.add_argument("--frozen-at", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -173,6 +199,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if found is None or not Path(found).is_file():
             parser.error(f"--resolver {args.resolver!r} is not an executable file")
         args.resolver = str(Path(found).resolve())
+    if args.increment and not args.reason:
+        parser.error("--increment needs --reason")
     if args.resume:
         parser.error(
             "--resume is no longer an option: reuse is automatic (#284). Every run reuses "
@@ -274,11 +302,39 @@ def stage_preflight(pipeline: Pipeline) -> dict:
     return result.report
 
 
+def registered_analysis_ids(b: bundle_module.Bundle) -> set[str]:
+    """Every id the bundle already holds, admitted or not, and every id an increment declares.
+
+    An increment emits only Analyses outside this set (ADR 0045 §3). A
+    withdrawn increment's ids are free again.
+    """
+    with b.analyses_path.open(newline="", encoding="utf-8") as handle:
+        ids = {row.get("analysis_id", "") for row in csv.DictReader(handle, delimiter="\t", quoting=csv.QUOTE_NONE)}
+    for inc in increment_module.load(b):
+        if inc.status != "withdrawn":
+            ids |= {row.get("analysis_id", "") for row in inc.rows()[1]}
+    return ids
+
+
+def increment_selection(pipeline: Pipeline, manifest: list) -> list:
+    """The resolver manifest's rows the bundle has never seen (ADR 0045 §3)."""
+    seen = registered_analysis_ids(bundle_module.load(pipeline.store_id, registry_root=pipeline.registry_root))
+    unseen = [row for row in manifest if row.analysis_id not in seen]
+    if not unseen:
+        raise CandidateError(
+            f"{pipeline.store_id}: every ready Analysis of the inventory is already in the bundle or an "
+            "increment; there is nothing to add"
+        )
+    return unseen
+
+
 def stage_prepare(pipeline: Pipeline) -> tuple[list, dict]:
     rows = read_inventory(pipeline.inventory_path)
     ready_ids = [row.analysis_id for row in rows if row.ready]
     metadata = read_analysis_metadata(pipeline.provenance_path, ready_ids)
     manifest = derive_resolver_manifest(rows, pipeline.config, metadata)
+    if pipeline.args.increment:
+        manifest = increment_selection(pipeline, manifest)
     pipeline.resolver_manifest_path.parent.mkdir(parents=True, exist_ok=True)
     pipeline.resolver_manifest_path.write_text(
         render_resolver_manifest(manifest), encoding="utf-8"
@@ -464,6 +520,10 @@ def stage_render(
     # Release policy (ADR 0036 step 6): Quality Checks, the Assigned Ancestry
     # check and the Store Composition Rule.
     rows = read_inventory(pipeline.inventory_path)
+    if pipeline.args.increment:
+        # Only the Analyses this increment resolved: every other row stays as it is (ADR 0045 §3).
+        selected = {row.analysis_id for row in manifest}
+        rows = [row for row in rows if row.analysis_id in selected]
     outcomes = apply_release_policy(rows, pipeline.config, metadata, {
         record["analysis_id"]: record for record in records
     }, manifest_rows=manifest)
@@ -524,6 +584,41 @@ def stage_render(
         sha256_file(pipeline.receipt_path) if pipeline.receipt_path.is_file() else None
     )
 
+    sidecars = {
+        "source_readiness.tsv": tables.source_readiness_tsv,
+        "ancestry.tsv": tables.ancestry_tsv,
+        "sd_estimation.tsv": tables.sd_estimation_tsv,
+        "exclusions.tsv": tables.exclusions_tsv,
+        "reference_overlap.tsv": tables.reference_overlap_tsv,
+        "quality_checks.tsv": tables.quality_checks_tsv,
+    # Only a release with targeted Analyses carries the target sidecar (#300).
+    } | ({"analysis_targets.tsv": tables.analysis_targets_tsv} if tables.analysis_targets_tsv else {})
+    if pipeline.args.increment:
+        increment_candidate = IncrementCandidate(
+            store_id=pipeline.store_id,
+            reason=pipeline.args.reason,
+            commands=tuple(commands),
+            analyses_tsv=tables.analyses_tsv,
+            sidecars=sidecars,
+            generator_version=generator_version,
+            source_snapshot={
+                "inventory_snapshot_id": pipeline.config.base.inventory_snapshot_id,
+                "inventory_tsv_sha256": inventory_sha256,
+                "preflight_report": str(pipeline.preflight_report_path),
+                "resolver_receipt": str(pipeline.receipt_path),
+                "resolver_receipt_sha256": receipt_sha256,
+            },
+            resolver={
+                "argv": (receipt or {}).get("resolver", {}).get("argv") if isinstance(receipt, dict) else None,
+                "settings_digest": (receipt or {}).get("settings_digest") if isinstance(receipt, dict) else None,
+            },
+            require_added=tuple(pipeline.args.require_added),
+            created_at=created_at,
+        )
+        write_rendered_increment(increment_candidate, pipeline.run_root / "increment")
+        print(f"Rendered increment: {pipeline.run_root / 'increment'}")
+        return increment_candidate, tables
+
     candidate = CandidateBundle(
         store_id=pipeline.store_id,
         release=render_release_yaml(
@@ -551,21 +646,33 @@ def stage_render(
             trait_ontology_mapping=trait_ontology_run.provenance(),
             completion=pipeline.config.completion,
         ),
-        sidecars={
-            "source_readiness.tsv": tables.source_readiness_tsv,
-            "ancestry.tsv": tables.ancestry_tsv,
-            "sd_estimation.tsv": tables.sd_estimation_tsv,
-            "exclusions.tsv": tables.exclusions_tsv,
-            "reference_overlap.tsv": tables.reference_overlap_tsv,
-            "quality_checks.tsv": tables.quality_checks_tsv,
-        }
-        # Only a release with targeted Analyses carries the target sidecar (#300).
-        | ({"analysis_targets.tsv": tables.analysis_targets_tsv} if tables.analysis_targets_tsv else {})
-        | dict(tables.acquisition_evidence),
+        sidecars=sidecars | dict(tables.acquisition_evidence),
     )
     write_rendered(candidate, pipeline.rendered_path)
     print(f"Rendered: {pipeline.rendered_path}")
     return candidate, tables
+
+
+def write_rendered_increment(candidate: IncrementCandidate, directory: Path) -> None:
+    """Write the rendered increment into the Work Root for review, as `emit --increment --from` reads it."""
+    staging = directory.with_name(directory.name + ".partial")
+    shutil.rmtree(staging, ignore_errors=True)
+    (staging / "sidecars").mkdir(parents=True)
+    if candidate.analyses_tsv is not None:
+        (staging / "analyses.tsv").write_text(candidate.analyses_tsv, encoding="utf-8")
+    for name, text in candidate.sidecars.items():
+        (staging / "sidecars" / name).write_text(text, encoding="utf-8")
+    declaration = {
+        "reason": candidate.reason,
+        "created_at": candidate.created_at,
+        "generator": {"version": candidate.generator_version},
+        "source_snapshot": dict(candidate.source_snapshot or {}),
+        "resolver": dict(candidate.resolver or {}),
+        "require_added": list(candidate.require_added),
+    }
+    (staging / "increment.yaml").write_text(render_yaml(declaration), encoding="utf-8")
+    shutil.rmtree(directory, ignore_errors=True)
+    staging.rename(directory)
 
 
 def write_rendered(candidate: CandidateBundle, directory: Path) -> None:
@@ -595,12 +702,19 @@ def write_rendered(candidate: CandidateBundle, directory: Path) -> None:
     staging.rename(directory)
 
 
-def stage_emit(pipeline: Pipeline, candidate: CandidateBundle, tables: CandidateTables) -> Path:
+def stage_emit(pipeline: Pipeline, candidate: CandidateBundle | IncrementCandidate, tables: CandidateTables) -> Path:
     refuse_overridden_resolver(
         read_resolution_receipt(pipeline.receipt_path),
         registry_root=pipeline.registry_root,
         repo_root=pipeline.repo_root,
     )
+    if isinstance(candidate, IncrementCandidate):
+        emitted = emit_increment(candidate, pipeline.registry_root)
+        print(
+            f"Increment of {pipeline.store_id} emitted to {emitted} as a candidate "
+            f"({tables.included_rows} admitted, {tables.excluded_rows} refused)"
+        )
+        return emitted
     emitted = emit(candidate, pipeline.registry_root)
     print(
         f"Candidate {pipeline.store_id} emitted to {emitted} "

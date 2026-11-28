@@ -22,17 +22,30 @@ emitter's own style:
 
     python3 -m manifest_generation.emit OGS-00042 --from <dir> \\
         --command "<step that produced it>" [--command ...] [--registry-root stores]
+
+**Increment mode** (ADR 0045 §3). `emit_increment()` and `--increment` write
+an Increment Bundle, ``stores/<id>/increments/<nnnn>/``, into a validated
+Reference-Completed Hybrid's bundle and touch no other file of it. The
+increment is staged with a copy of its bundle, held to the contract with it,
+and moved into place under the same per-id lock, as a candidate:
+
+    python3 -m manifest_generation.emit OGS-00011 --increment --from <rendered increment> \\
+        --command "<step that produced it>"
+    python3 -m manifest_generation.emit OGS-00011 --increment --drop ID=REASON [--drop ...] \\
+        --reason TEXT [--defect --erratum-issue ISSUE --erratum-text TEXT]
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import ctypes
 import errno
 import fcntl
 import os
 import shutil
 import sys
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -41,7 +54,7 @@ from typing import Any
 
 import yaml
 
-from ogstores import bundle, index, paths
+from ogstores import bundle, increment, index, paths
 from manifest_generation import REPO_ROOT, generation_rules
 
 #: The registry subdirectory candidates are staged under. Hidden, so
@@ -75,6 +88,29 @@ class CandidateBundle:
     sidecars: Mapping[str, str] = field(default_factory=dict)
     #: File name under `column_maps/` -> its bytes: the Column Map `build.yaml` binds, when carried.
     column_maps: Mapping[str, bytes] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class IncrementCandidate:
+    """One candidate Increment Bundle (ADR 0045 §2): the rows it adds, its drops, and how it was produced."""
+
+    store_id: str
+    reason: str
+    #: The commands that produced it, in order; recorded as `generator.commands`.
+    commands: Sequence[str]
+    #: The rows it adds, in the bundle's columns; None for a drop-only increment.
+    analyses_tsv: str | None = None
+    #: File name under `sidecars/` -> its text, each with the bundle's header.
+    sidecars: Mapping[str, str] = field(default_factory=dict)
+    generator_version: str | None = None
+    source_snapshot: Mapping[str, Any] | None = None
+    #: The resolver version and settings digest its rows were resolved under.
+    resolver: Mapping[str, Any] | None = None
+    require_added: Sequence[str] = ()
+    #: Each `{analysis_id, reason, defect}`.
+    drops: Sequence[Mapping[str, Any]] = ()
+    erratum: Mapping[str, Any] | None = None
+    created_at: str | None = None
 
 
 def render_yaml(document: Mapping[str, Any]) -> str:
@@ -111,6 +147,159 @@ def emit(candidate: CandidateBundle, registry_root: Path | str) -> Path:
         finally:
             shutil.rmtree(staging, ignore_errors=True)
     return target
+
+
+def _increment_document(candidate: IncrementCandidate, number: int) -> dict[str, Any]:
+    commands = list(candidate.commands)
+    if not commands or not all(isinstance(c, str) and c.strip() for c in commands):
+        raise EmitError(f"{candidate.store_id}: the commands that produced the increment are required")
+    document: dict[str, Any] = {
+        "increment": number,
+        "store_id": candidate.store_id,
+        "status": CANDIDATE_STATUS,
+        "reason": candidate.reason,
+        "created_at": candidate.created_at or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "generator": {
+            **({"version": candidate.generator_version} if candidate.generator_version else {}),
+            "commands": commands,
+        },
+    }
+    if candidate.source_snapshot is not None:
+        document["source_snapshot"] = dict(candidate.source_snapshot)
+    if candidate.resolver is not None:
+        document["resolver"] = dict(candidate.resolver)
+    document.update({
+        "require_added": list(candidate.require_added),
+        "drops": [dict(d) for d in candidate.drops],
+        "erratum": dict(candidate.erratum) if candidate.erratum else None,
+        "acceptance": None,
+        "accepted_warnings": [],
+        "published": None,
+    })
+    return document
+
+
+def _checksums(text: str) -> dict[str, str]:
+    """`checksum` -> `analysis_id` for every row of an analyses table that states one."""
+    rows = list(csv.DictReader(text.splitlines(), delimiter="\t", quoting=csv.QUOTE_NONE))
+    return {r["checksum"]: r.get("analysis_id", "") for r in rows if (r.get("checksum") or "").strip()}
+
+
+def emit_increment(candidate: IncrementCandidate, registry_root: Path | str) -> Path:
+    """Emit `candidate` as `<registry_root>/<id>/increments/<nnnn>/` and return that path (ADR 0045 §3).
+
+    Nothing else in the bundle changes. Refused, with nothing written: a bundle
+    that is not a validated Reference-Completed Hybrid, one with an open
+    increment, a row whose checksum is a bundle row's, and anything the
+    contract or Manifest Generation's rules refuse in the bundle with the
+    increment staged into it.
+    """
+    store_id = candidate.store_id
+    if not paths.is_valid_store_id(store_id):
+        raise EmitError(f"{store_id!r} is not a Store id (OGS-NNNNN)")
+    for name in candidate.sidecars:
+        if not name or name != Path(name).name or name in (".", ".."):
+            raise EmitError(f"sidecar name {name!r} must be a plain file name under sidecars/")
+    registry_root = Path(registry_root)
+    target = registry_root / store_id
+    staging_root = registry_root / STAGING_DIRNAME
+    with _emit_lock(staging_root, store_id):
+        if target.is_symlink() or not (target / "release.yaml").is_file():
+            raise EmitError(f"{store_id} has no Release Bundle at {target} to take an increment")
+        loaded = bundle.load(store_id, registry_root=registry_root)
+        if loaded.status != "validated":
+            raise EmitError(
+                f"{store_id}: an increment applies to a validated bundle; its Release Status is {loaded.status!r}"
+            )
+        if not (loaded.layout == "hybrid" and loaded.completes_own_store):
+            raise EmitError(f"{store_id}: only a Reference-Completed Hybrid that completes its own Store takes one")
+        existing = increment.load(loaded)
+        opened = [i for i in existing if i.is_open]
+        if opened:
+            raise EmitError(
+                f"{store_id} has an open increment, {increment.directory_name(opened[0].number)} "
+                f"({opened[0].status}); it is published or withdrawn before another is emitted"
+            )
+        if candidate.analyses_tsv is not None:
+            bundle_sums = _checksums(loaded.analyses_path.read_text(encoding="utf-8"))
+            for checksum, analysis_id in _checksums(candidate.analyses_tsv).items():
+                if checksum in bundle_sums:
+                    raise EmitError(
+                        f"{store_id}: increment row {analysis_id!r} has the checksum of bundle row "
+                        f"{bundle_sums[checksum]!r}: the same file under another id"
+                    )
+        number = len(existing) + 1
+        name = increment.directory_name(number)
+        stage_parent = staging_root / f"{store_id}.increment-{name}"
+        shutil.rmtree(stage_parent, ignore_errors=True)
+        try:
+            staged_bundle = stage_parent / store_id
+            shutil.copytree(target, staged_bundle, symlinks=True)
+            staged = staged_bundle / increment.INCREMENTS_DIRNAME / name
+            staged.mkdir(parents=True)
+            if candidate.analyses_tsv is not None:
+                (staged / increment.ANALYSES_FILE).write_text(candidate.analyses_tsv, encoding="utf-8")
+            if candidate.sidecars:
+                (staged / increment.SIDECARS_DIRNAME).mkdir()
+                for sidecar, text in candidate.sidecars.items():
+                    (staged / increment.SIDECARS_DIRNAME / sidecar).write_text(text, encoding="utf-8")
+            (staged / increment.INCREMENT_FILE).write_text(
+                render_yaml(_increment_document(candidate, number)), encoding="utf-8"
+            )
+            staged_loaded = bundle.load(store_id, registry_root=stage_parent)
+            errors = list(generation_rules.check_with_contract(staged_loaded, registry_root=registry_root))
+            if candidate.analyses_tsv is not None:
+                inc = increment.get(staged_loaded, number)
+                errors += [f"increment {name}: {e}" for e in generation_rules.check(inc.as_bundle(staged_loaded))]
+            if errors:
+                raise EmitError(
+                    f"{store_id}: increment {name} fails the Release Bundle contract or a Manifest Generation "
+                    "rule; nothing was emitted:\n  - " + "\n  - ".join(errors)
+                )
+            (target / increment.INCREMENTS_DIRNAME).mkdir(exist_ok=True)
+            destination = target / increment.INCREMENTS_DIRNAME / name
+            if destination.exists() or destination.is_symlink():
+                raise EmitError(f"{store_id}: {destination} already exists; nothing was emitted")
+            os.rename(staged, destination)
+        finally:
+            shutil.rmtree(stage_parent, ignore_errors=True)
+    return destination
+
+
+def read_rendered_increment(
+    directory: Path | str, store_id: str, commands: Sequence[str]
+) -> IncrementCandidate:
+    """Read an increment another renderer wrote: `increment.yaml`'s declaration, its rows and sidecars."""
+    directory = Path(directory)
+    allowed = {increment.INCREMENT_FILE, increment.ANALYSES_FILE, increment.SIDECARS_DIRNAME}
+    unexpected = sorted(p.name for p in directory.iterdir() if p.name not in allowed or p.is_symlink())
+    if unexpected:
+        raise EmitError(f"{directory} holds what an Increment Bundle does not: {', '.join(unexpected)}")
+    path = directory / increment.INCREMENT_FILE
+    declaration = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
+    if not isinstance(declaration, Mapping):
+        raise EmitError(f"{path} must be a YAML mapping declaring at least `reason`")
+    for key in ("status", "acceptance", "published", "increment"):
+        if declaration.get(key) not in (None, CANDIDATE_STATUS if key == "status" else None):
+            raise EmitError(f"{path} may not set {key!r}: the emit numbers it and a human accepts it")
+    sidecar_dir = directory / increment.SIDECARS_DIRNAME
+    sidecars = sorted(sidecar_dir.iterdir()) if sidecar_dir.is_dir() else []
+    analyses = directory / increment.ANALYSES_FILE
+    generator = declaration.get("generator") if isinstance(declaration.get("generator"), Mapping) else {}
+    return IncrementCandidate(
+        store_id=store_id,
+        reason=str(declaration.get("reason") or ""),
+        commands=tuple(commands),
+        analyses_tsv=analyses.read_text(encoding="utf-8") if analyses.is_file() else None,
+        sidecars={p.name: p.read_text(encoding="utf-8") for p in sidecars if p.is_file()},
+        generator_version=generator.get("version"),
+        source_snapshot=declaration.get("source_snapshot"),
+        resolver=declaration.get("resolver"),
+        require_added=tuple(declaration.get("require_added") or ()),
+        drops=tuple(declaration.get("drops") or ()),
+        erratum=declaration.get("erratum"),
+        created_at=declaration.get("created_at"),
+    )
 
 
 def read_rendered(directory: Path | str, store_id: str, commands: Sequence[str]) -> CandidateBundle:
@@ -331,19 +520,65 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _emit_main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("store_id", help="the candidate's Store Release id, e.g. OGS-00042")
-    parser.add_argument("--from", dest="rendered", required=True, help="directory holding the rendered bundle")
+    parser.add_argument("--from", dest="rendered", help="directory holding the rendered bundle or increment")
     parser.add_argument(
-        "--command", dest="commands", action="append", required=True,
+        "--command", dest="commands", action="append",
         help="a generator command that produced it, in order (repeat for each)",
     )
     parser.add_argument("--registry-root", default=str(REPO_ROOT / "stores"))
+    increment_options = parser.add_argument_group("increment mode (ADR 0045)")
+    increment_options.add_argument("--increment", action="store_true",
+                                   help="emit an Increment Bundle into a validated bundle")
+    increment_options.add_argument("--drop", dest="drops", action="append", default=[], metavar="ID=REASON",
+                                   help="an Analysis to drop, with its reason (repeat for each)")
+    increment_options.add_argument("--reason", help="why the increment is made")
+    increment_options.add_argument("--defect", action="store_true", help="the drops remove defects: a Release Erratum")
+    increment_options.add_argument("--erratum-issue", help="the issue the erratum cites")
+    increment_options.add_argument("--erratum-text", help="the erratum's text")
     args = parser.parse_args(argv)
+    if args.increment:
+        return _emit_increment_main(args, argv)
+    if not args.rendered or not args.commands:
+        parser.error("--from and --command are required, except for a drop-only --increment")
     try:
         emitted = emit(read_rendered(args.rendered, args.store_id, args.commands), args.registry_root)
     except EmitError as exc:
         print(f"emit: {exc}", file=sys.stderr)
         return 1
     print(f"emit: {args.store_id} emitted to {emitted} with Release Status candidate")
+    return 0
+
+
+def _emit_increment_main(args: argparse.Namespace, argv: Sequence[str]) -> int:
+    commands = args.commands or [" ".join(["python3", "-m", "manifest_generation.emit", *argv])]
+    try:
+        if args.rendered:
+            if args.drops:
+                raise EmitError("--drop is for a drop-only increment; declare drops in the rendered increment.yaml")
+            candidate = read_rendered_increment(args.rendered, args.store_id, commands)
+        else:
+            drops = []
+            for item in args.drops:
+                analysis_id, separator, reason = item.partition("=")
+                if not separator or not analysis_id or not reason.strip():
+                    raise EmitError(f"--drop {item!r} must be ID=REASON")
+                drops.append({"analysis_id": analysis_id, "reason": reason, "defect": bool(args.defect)})
+            if not drops:
+                raise EmitError("an increment needs --from (rows to add) or at least one --drop")
+            if not args.reason:
+                raise EmitError("a drop-only increment needs --reason")
+            erratum = None
+            if args.erratum_issue or args.erratum_text:
+                erratum = {"issue": args.erratum_issue or "", "text": args.erratum_text or ""}
+            candidate = IncrementCandidate(
+                store_id=args.store_id, reason=args.reason, commands=tuple(commands),
+                drops=tuple(drops), erratum=erratum,
+            )
+        emitted = emit_increment(candidate, args.registry_root)
+    except (EmitError, increment.IncrementError, OSError) as exc:
+        print(f"emit: {exc}", file=sys.stderr)
+        return 1
+    print(f"emit: {args.store_id} increment emitted to {emitted} as a candidate")
     return 0
 
 

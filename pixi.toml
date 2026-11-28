@@ -315,6 +315,12 @@ release-dry = { cmd = "python3 workflow/release.py --dry-run" }
 #
 #   pixi run publish-rewrite OGS-00015 --staged <store dir>/store.opengwasdb.0.3.0 --evidence <prefix>
 publish-rewrite = { cmd = "python3 -m ogstores.publish_rewrite" }
+# Write an open Increment Bundle's owner-attested source-record.json from the
+# published release's records (ADR 0045 §6, #546):
+#
+#   pixi run increment-source-record OGS-00011 --increment 1 --attested-by "<owner>" \
+#     --variant-reference-sha256 <hex> --ld-panel-digest <digest>
+increment-source-record = { cmd = "python3 -m ogstores.source_record" }
 index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
