@@ -297,6 +297,68 @@ written, by
 in its dry run and its run, and the Snakefile in `onstart`, beside the Indexed
 Variant Subset guard.
 
+## Coordination with core #367
+
+Core opengwas/opengwasdb#367 (PR opengwas/opengwasdb#515) closes a set of silent
+failures. Stores #563 follows it. Names below are the engine's own
+(`docs/spec/store-format.md`); the validation rules are listed in its §20.0.
+
+**A completion records the panel it read (opengwasdb#327).** Every `complete-*`
+command takes `--ld-panel-id`, and Manifest Generation passes the Reference
+Resource's id there (`completion.completion_block` writes `ld-panel-id` beside
+`ld-panel` and `ancestry` in `build.yaml`'s `complete` options; a release config
+cannot set it). A completion with no `--ld-panel-id` records `sha256:` and a
+digest prefix instead, which no registry can match to a declared resource. `plan()`
+renders the option like any other and gives it to `complete` only, not to
+`check-observed-view`. A `build.yaml` published earlier has none and keeps its
+planned argv. `provenance.completion` now holds five panel fields: `ld_panel_id`,
+`ld_panel_id_source` (`caller` or `digest`), `ld_panel_path`, `ld_panel_digest`
+and `ld_panel_ancestry_dir`. The digest is the sha256 of every file the loader
+reads, so a completion that resumes under another panel is refused. `validate`
+adds `completion.ld_panel` (an error: some of the five fields, an id its digest
+does not derive, or a Hybrid and Dense Component naming two panels) and
+`completion.ld_panel_unrecorded` (a warning: a completion before #327). **This
+breaks Python callers**: `complete_dense_store`, `complete_ragged_store` and
+`complete_hybrid_store` take `(source_path, dest_path, panel, options)` with one
+`PanelSource` and one `CompletionOptions` (both in `opengwasdb.completion.ld_panel`)
+in place of `ld_dir`, `ancestry`, `ld_panel_id` and the keywords they replace.
+OGS-00013's completion, when it runs, records the panel's digest.
+
+**Every build checks effect consistency (opengwasdb#510, ADR 0069).** `build-hybrid`,
+`build-dense-vcf` and `build-ragged-ssf` compare each stored z with its source's own
+p-value on the first 1,000,000 rows and refuse naming every Analysis that contradicts
+it; the error says `effect_consistency=refused`. Manifest Generation declares each
+Analysis's test in the bundle's `analyses.tsv` as `p_value_test` (`wald_1df`,
+`joint_2df` or `mr_mega`, from `release_policy.p_value_tests`), which the derived
+build manifest carries, and excludes a refused Analysis by the reason
+`effect_consistency_refused` (see the Exclusions sidecar in
+`docs/release-metadata-schema.md`). A Store's `analyses.tsv` gains five
+`effect_consistency*` columns, and `validate` adds `effect_consistency.evidence`
+(an error) and `effect_consistency.unchecked` (a warning on a release built before),
+and `associations.z_plausible`, which fails a genome-wide release with an Analysis
+over 30 % of its observed associations at 5e-8. It flags GCST002047 in OGS-00005,
+so `validate` fails OGS-00005 until it is rebuilt without it. The owner ruled
+(27 Nov 2026) that GCST002047 is excluded at the rebuild in OGS-00005 and OGS-00023.
+
+**Named references fill rsids (opengwasdb#258).** A `--variant-reference` that names
+some rsids no longer leaves the rest blank: every single-pass build harvests, so a
+build can refuse on `--liftover-failure-threshold` or on a dispute among its
+sources (`--on-rsid-conflict`), and costs about 30 % more (OGS-00004: 13.5 of 44
+min). A Hybrid checkpoint is format 9; older ones are refused.
+
+**New Admission reasons and validate rules.**
+
+| From | Reason or rule | What it says |
+|---|---|---|
+| #325 | `lift_collision`, `lift_collisions.tsv` | Rules `admission/15`: every source a lift put on one ALID is dropped and listed; no Store-side rule. |
+| #410 | `hm_unplaced`, `in_assembly_gap`, `past_contig_end` | Rules `admission/16`. `hm_unplaced` is a GWAS Catalog `hm_code` 14, 15 or 16. A lifted Store's `provenance.lift` counts `n_outside_sequence`. |
+| #410 | `variant_table.assembly_gap` | `validate`: error from format 0.2.2, warning before. Fails OGS-00011, OGS-00032 and OGS-00033 until their 0.3.0 rebuild. |
+| #261 | `source_alid` | A row no source observed records `.`, never its own ALID; `build-dense-vcf` and `build-hybrid` refuse a `source_alid` no source supplied. |
+| #257 | `n_off_panel_without_association`, `unassociated_variants.tsv`, `hybrid.overflow_associated` | A Hybrid build drops an off-panel variant no Analysis holds an association of (build summary count, ALID list beside the Admission record); `validate` warns of a release that holds one. |
+| #362 | `completion.imputed_total`, `completion.missing_total` | Errors: a completion's declared totals must equal its mask's counts. They fail OGS-00009, -12, -14, -15 and -17 until rebuilt. |
+| #510 | `associations.z_plausible`, `effect_consistency.evidence`, `effect_consistency.unchecked` | As above. |
+| #327 | `completion.ld_panel`, `completion.ld_panel_unrecorded` | As above. |
+
 ## Coordination with core #295
 
 Core opengwas/opengwasdb#295 extends `check-observed-view` from Dense pairs to
@@ -371,8 +433,9 @@ the key is absent from the rsid index, which is how a Store already records a
 variant it can name no other way. The build always reports what its harvest
 compared as `rsid_conflicts: {policy, n_keys, n_variants, sample}` in its stdout
 JSON, with both counts `0` when nothing was disputed and `null` when no names
-were compared across sources, which is now only a reference that names its own
-rsids. From opengwasdb v0.6.0 (opengwas/opengwasdb#379) a `--reference-panel`
+were compared across sources, which since opengwas/opengwasdb#258 is a record
+written before it only: every single-pass build harvests, whether or not its
+reference names rsids. From opengwasdb v0.6.0 (opengwas/opengwasdb#379) a `--reference-panel`
 build harvests names with the same test, accepts `drop`, and reports counts
 where it reported `null`: where its sources spell one site in different case
 and name it differently, it kept the first source's name before. The other
