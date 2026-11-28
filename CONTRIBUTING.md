@@ -287,7 +287,7 @@ workflow begins at the fixed-input boundary documented in
 ## Repository layout
 
 ```text
-stores/            Release Bundles, one per Store Release
+stores/            Release Bundles, one per Store id
 src/               all importable Python
   ogstores/          Store Release Build, and the Release Bundle contract both use
   manifest_generation/  Manifest Generation: sources -> candidate Release Bundle
@@ -341,17 +341,17 @@ provenance, the originals named there, and config inputs.
 
 ### `stores/`
 
-One directory per Store Release, named by its opaque `OGS-` identifier
+One directory per Store id, named by its opaque `OGS-` identifier
 (ADR 0022): `release.yaml`, `build.yaml`, `analyses.tsv`, `validation.yaml`.
 Simultaneously the output of Manifest Generation and the fixed input of Store
 Release Build. Also holds candidate releases (`status: candidate`), so what is
 under consideration and what has been built appear in one list.
 
 A bundle is immutable once accepted. A material change to membership or to the
-Build Recipe is a **new** Store Release (ADR 0004), not an edit. The one way
-membership changes under the same id is an accepted Increment Bundle
-(`increments/<nnnn>/`), which the increment route folds in when it publishes
-(ADR 0045). Correcting
+Build Recipe is a **new** Store Release (ADR 0004), not an edit. The exception
+is an accepted Increment Bundle (`increments/<nnnn>/`): a Reference-Completed
+Hybrid's membership changes under the same Store id, as a new Store Release,
+when the increment route splices it and folds it in (ADR 0045). Correcting
 Analytical Metadata after publication is a Release Erratum. The one exception,
 OGS-00011's re-emit under its own id before the first release (#478), is
 recorded in ADR 0004.

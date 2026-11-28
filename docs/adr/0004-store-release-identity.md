@@ -23,4 +23,6 @@ as a new Store Release under the same id. The previous release is archived
 under `replaced/<UTC>/`, and a defect removal is also a Release Erratum
 (ADR 0005). Only that change keeps the id, and only under the conditions in
 ADR 0045 §1. Every other change to the Release Manifest or to a material Build
-Recipe choice still needs a new Store Release id, under the rule above.
+Recipe choice still needs a new Store id, under the rule above. Here a "new
+Store Release" in that rule means a new Store id, never only a new
+`release_id`.
