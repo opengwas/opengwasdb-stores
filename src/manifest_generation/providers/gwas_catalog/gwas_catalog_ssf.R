@@ -25,40 +25,71 @@ source("src/manifest_generation/providers/gwas_catalog/contract.R")
 # sits earlier in the string: "181,522 European ancestry, unknown cases", or
 # "5,085 European, African, ... and South Asian ancestry cases" (an ancestry
 # list split on ", "). Its count is then the first number of the nearest
-# preceding bit that has one and is not itself labelled; that bit is consumed,
-# so it is not counted again as a sample_size (#557). Bits are split on ", " or
-# on a bare "," before a digit, and a bit ending in "control" reads as "controls".
+# preceding unlabelled bit that has one, searching back only through unlabelled
+# bits (never across another cases/controls bit); that bit is consumed, so it
+# is not counted again as a sample_size (#557).
+#
+# Shapes read beyond the plain one:
+# - a bit holding both labels and as many numbers ("2,853 European ancestry
+#   cases and 37,405 European ancestry controls") gives each number to the
+#   label that follows it; with one number ("2,253 Korean ancestry cases and
+#   controls") each label takes it; with none (a repeated typo, "... female
+#   cases female controls") the later label looks back for its count;
+# - "cases,44,187 ..." with no space is split after "cases"/"controls" before a
+#   count that a later label claims, and only after "cases" is a trailing
+#   singular "control" a label (GCST90301705-7).
 .parse_sample_size_components <- function(x) {
   if (is.na(x)) return(NULL)
-  bits <- unlist(strsplit(gsub("(\\d),(?=\\d)", "\\1", x, perl = TRUE), ",\\s+|,(?=\\d)", perl = TRUE))
-  first_number <- function(bit) {
+  s <- gsub(" ", " ", x, fixed = TRUE)
+  s <- gsub("(\\d),(?=\\d)", "\\1", s, perl = TRUE)
+  # A bare comma after a label, before a count that a later label claims.
+  bare_comma <- grepl("\\bcases,\\d", s, perl = TRUE)
+  s <- gsub("(\\b(?:cases|controls)),(?=\\d[^,]*(?:,.*)?(?:\\b(?:cases|controls)\\b|\\bcontrol$))", "\\1, ", s, perl = TRUE)
+  bits <- unlist(strsplit(s, ",\\s+", perl = TRUE))
+  label_pattern <- if (bare_comma) "\\bcases\\b|\\bcontrols\\b|\\bcontrol$" else "\\bcases\\b|\\bcontrols\\b"
+  numbers_in <- function(bit) {
     v <- suppressWarnings(as.numeric(strsplit(bit, " ")[[1]]))
-    v <- v[!is.na(v)]
-    if (length(v) == 0) NA_real_ else v[1]
+    v[!is.na(v)]
   }
-  # A bit holding both words ("... cases female controls") takes the later one.
-  last_word <- function(bit) {
-    w <- regmatches(bit, gregexpr("cases|controls|control$", bit))[[1]]
-    if (length(w) == 0) NA_character_ else if (startsWith(w[length(w)], "control")) "controls" else "cases"
-  }
-  label <- vapply(bits, last_word, character(1), USE.NAMES = FALSE)
-  num <- vapply(bits, first_number, numeric(1), USE.NAMES = FALSE)
-  consumed <- rep(FALSE, length(bits))
-  n <- rep(0, length(bits))
+  classify_case_control_label <- function(word) if (startsWith(word, "control")) "controls" else "cases"
+
+  # One component per bit, or two for a dual-label bit with two numbers.
+  comp_bit <- integer(0); comp_label <- character(0); comp_num <- numeric(0)
   for (i in seq_along(bits)) {
-    if (is.na(label[i])) next
-    if (!is.na(num[i])) { n[i] <- num[i]; next }
-    j <- which(is.na(label[seq_len(i - 1)]) & !is.na(num[seq_len(i - 1)]) & !consumed[seq_len(i - 1)])
-    if (length(j)) {
-      j <- max(j)
-      n[i] <- num[j]
-      consumed[j] <- TRUE
+    words <- regmatches(bits[i], gregexpr(label_pattern, bits[i], perl = TRUE))[[1]]
+    nums <- numbers_in(bits[i])
+    if (length(words) == 0) {
+      comp_bit <- c(comp_bit, i); comp_label <- c(comp_label, NA_character_)
+      comp_num <- c(comp_num, if (length(nums)) nums[1] else NA_real_)
+    } else if (length(words) >= 2 && length(nums) >= 1) {
+      # Each label takes the number that precedes it; with fewer numbers than
+      # labels ("2,253 Korean ancestry cases and controls") each takes the first.
+      for (k in seq_along(words)) {
+        comp_bit <- c(comp_bit, i); comp_label <- c(comp_label, classify_case_control_label(words[k]))
+        comp_num <- c(comp_num, if (length(nums) == length(words)) nums[k] else nums[1])
+      }
+    } else {
+      comp_bit <- c(comp_bit, i)
+      comp_label <- c(comp_label, classify_case_control_label(words[length(words)]))
+      comp_num <- c(comp_num, if (length(nums)) nums[1] else NA_real_)
     }
   }
-  is_other <- is.na(label) & !consumed
-  n[is_other] <- ifelse(is.na(num[is_other]), 0, num[is_other])
+  consumed <- rep(FALSE, length(comp_bit))
+  n <- ifelse(is.na(comp_num), 0, comp_num)
+  for (i in seq_along(comp_bit)) {
+    if (is.na(comp_label[i]) || !is.na(comp_num[i])) next
+    j <- i - 1
+    while (j >= 1 && is.na(comp_label[j])) {
+      if (!consumed[j] && !is.na(comp_num[j])) {
+        n[i] <- comp_num[j]
+        consumed[j] <- TRUE
+        break
+      }
+      j <- j - 1
+    }
+  }
   keep <- !consumed
-  out <- data.table(n = n[keep], what = ifelse(is.na(label), "sample_size", label)[keep])
+  out <- data.table(n = n[keep], what = ifelse(is.na(comp_label), "sample_size", comp_label)[keep])
   if (!nrow(out)) return(NULL)
   out[order(match(what, c("cases", "controls", "sample_size")))]
 }

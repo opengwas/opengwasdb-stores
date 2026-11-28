@@ -123,6 +123,29 @@ check_parse("GCST90301705",
 # "control" inside a bit is not a controls label: GCST007241 is quantitative.
 check_parse("GCST007241",
   "1,456 British ancestry obese children, 6,460 European ancestry control adults", 0, 0, 7916)
+# A bit holding both labels and two numbers gives each number to the label
+# that follows it (GCST004785; GCST004462 has a non-breaking space after the comma).
+check_parse("GCST004785",
+  "2,853 European ancestry cases and 37,405 European ancestry controls", 2853, 37405)
+check_parse("GCST004462",
+  "16,924 European ancestry cases,\u00a068,502 European ancestry controls", 16924, 68502)
+# The numberless search stops at a labelled bit: no cross-label borrowing.
+check_parse("no cross-label search", "100 individuals, 50 cases, unknown controls", 50, 0, 100)
+# A bare comma is a boundary only after "cases", before a count; "control" is a
+# label only in that shape; "noncontrol" is never one.
+check_parse("bare comma not a boundary", "1,200 Europeans,1000 Genomes ancestry", 0, 0, 1200)
+check_parse("glycemic control", "1,200 Europeans under glycemic control", 0, 0, 1200)
+check_parse("noncontrol", "500 cases, 700 noncontrol", 500, 0, 700)
+
+# One number shared by "cases and controls" keeps reading as both (base behaviour).
+check_parse("GCST009654", "2,253 Korean ancestry cases and controls", 2253, 2253)
+# A bare comma after "controls" before a count that "cases" claims (GCST004296):
+# cases 15,979+641+837+277+197, controls 102,776+5,234+3,293+3,081+758.
+check_parse("GCST004296",
+  paste0("15,979 European ancestry cases, 102,776 European ancestry controls, 641 African American cases, ",
+         "5,234 African American controls, 837 Japanese ancestry cases, 3,293 Japanese controls, ",
+         "277 Hispanic cases, 3,081 Hispanic controls,197 Brazilian ancestry cases, 758 Brazilian ancestry controls."),
+  17931, 115142)
 # Existing shapes keep their counts.
 check_parse("simple", "10,007 cases, 474,591 controls", 10007, 474591)
 check_parse("quantitative", "1,000 European ancestry individuals", 0, 0, 1000)
