@@ -8,5 +8,4 @@
   0085). An Analysis whose Resolution Record is a refusal by that check is excluded
   with the new reason `effect_consistency_refused`, not `resolution_failed`. The
   docs list the five `effect_consistency*` Store columns, the new Admission reasons
-  and the new `validate` rules, and the repository builds against
-  `opengwasdb@orch/367-silent-errors` until PR opengwas/opengwasdb#515 merges.
+  and the new `validate` rules.

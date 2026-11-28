@@ -335,8 +335,8 @@ build manifest carries, and excludes a refused Analysis by the reason
 `docs/release-metadata-schema.md`). A Store's `analyses.tsv` gains five
 `effect_consistency*` columns, and `validate` adds `effect_consistency.evidence`
 (an error) and `effect_consistency.unchecked` (a warning on a release built before),
-and `associations.z_plausible`, which fails a genome-wide release with an Analysis
-over 30 % of its observed associations at 5e-8. It flags GCST002047 in OGS-00005,
+and `associations.z_plausible`, which fails (a warning before format_version 0.2.2) a genome-wide release with an Analysis of at least 1,000 observed associations
+and over 30 % of its observed associations at 5e-8. It flags GCST002047 in OGS-00005,
 so `validate` fails OGS-00005 until it is rebuilt without it. The owner ruled
 (27 Nov 2026) that GCST002047 is excluded at the rebuild in OGS-00005 and OGS-00023.
 

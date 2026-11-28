@@ -111,7 +111,7 @@ class LegacyWarning:
     rule: str
     ticket: str
     why: str
-    #: How the route knows the release was built before the rule (the owner's 28 Nov 2026 ruling).
+    #: How the route knows the release was built before the rule (the owner's 28 Nov 2026 ruling, https://github.com/opengwas/opengwasdb-stores/issues/563#issuecomment-7243082291).
     decided_by: str
 
 
@@ -124,20 +124,26 @@ LEGACY_WARNINGS: tuple[LegacyWarning, ...] = (
     LegacyWarning(
         "effect_consistency.unchecked", "opengwasdb#510",
         "the release was built before builds checked each stored z against its source's p-value",
-        "the engine's own test: none of the five effect_consistency* columns is in analyses.tsv, "
-        "and a rewrite keeps them absent",
+        "the engine's own test, run by `validate` on the staged release: none of the five "
+        "effect_consistency* columns is in analyses.tsv, and a rewrite keeps them absent. The "
+        "replaced record's engine version is not used: #510 moved no format_version and no released "
+        "engine version marks it",
     ),
     LegacyWarning(
         "completion.ld_panel_unrecorded", "opengwasdb#327",
         "the release's completion was written before it recorded the LD panel it read",
-        "the engine's own test: none of the four #327 panel fields is in provenance.completion, "
-        "and a rewrite keeps them absent",
+        "the engine's own test, run by `validate` on the staged release: none of the four #327 panel "
+        "fields is in provenance.completion, and a rewrite keeps them absent. The replaced record's "
+        "engine version is not used: #327 moved no format_version and no released engine version marks it",
     ),
     LegacyWarning(
         "hybrid.overflow_associated", "opengwasdb#257",
         "the release was built before a Hybrid build dropped off-panel variants holding no association",
-        "not decidable from the release: `format_version` did not move with #257 and the engine "
-        "says an older release cannot be told apart, so it is accepted only through this list",
+        "the route's source is a release of the 0.2 series (`SOURCE_FORMAT_SERIES`, refused otherwise), "
+        "written by an engine that wrote 0.2, which predates #257 (unreleased, on the 0.3 line). The "
+        "engine itself says an older release cannot be told apart, and the replaced record's engine "
+        "version (`build_environment.opengwasdb_version`) names no #257 boundary to compare with, so "
+        "it is not used; this is a judgement the list records, not a test on the release",
     ),
 )
 LEGACY_RULES: dict[str, LegacyWarning] = {entry.rule: entry for entry in LEGACY_WARNINGS}

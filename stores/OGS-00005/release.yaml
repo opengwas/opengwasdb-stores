@@ -144,4 +144,9 @@ notes: 'original_sd_method starts at `unavailable` (never `declared_standardised
   reported its verdict. Each archive keeps its records/ and validation.yaml, as ADR 0037 keeps on an
   unforced replacement, so the change stays dated and evidenced.
 
+
+  GCST002047 must not be admitted by a rebuild (opengwasdb#367, stores #563). Its stored z is on another
+  scale: associations.z_plausible fails this release on it (the owner''s 27 Nov 2026 ruling; docs/runtime.md).
+  The rebuild sets exclude_from_build=true on its row, with an inclusion_reason, before building; the
+  published Store and its row are unchanged until then.
   '

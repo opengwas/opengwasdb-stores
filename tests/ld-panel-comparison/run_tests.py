@@ -45,7 +45,7 @@ FIRST_POSITION = 20_000_000
 N_VARIANTS = 600
 #: The block name the comparison is asked for. It is the half-open span
 #: `store_rows` fetches -- `tabix.fetch(chrom, start - 1, end)` -- so a block
-#: named `1000-1600` covers positions 1000..1599, which is every variant here.
+#: named `<first>-<first + 600>` covers every variant here.
 BLOCK = f"{FIRST_POSITION}-{FIRST_POSITION + N_VARIANTS}"
 ANALYSES = ("a", "b")
 SEED = 20260806
