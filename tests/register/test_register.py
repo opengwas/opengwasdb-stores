@@ -169,6 +169,11 @@ def create_test_bundle_and_records(
             stdout_payload = ""
             if step.name in ("build", "complete"):
                 stdout_payload = json.dumps({"n_variants": 1000, "n_analyses": 2, "format_version": "1.0"}) + "\n"
+            elif step.name in ("clump", "completion-clump"):
+                # What `opengwasdb clump` prints (#526): the counts `register` records.
+                stdout_payload = json.dumps(
+                    {"analyses": 2, "clumped": 2, "n_loci_5e8": 16, "n_unclumped_5e8": 3}
+                ) + "\n"
             elif step.name in ("validate", "completion-validate"):
                 # The shape `opengwasdb validate --format json` prints (#195).
                 stdout_payload = json.dumps({"errors": [], "ok": True, "warnings": []}) + "\n"
@@ -195,7 +200,7 @@ def create_test_bundle_and_records(
                 "record_path": str(paths.record_path(store_id, step.name, root=artifact_root)),
             }
         rec_file = paths.record_path(store_id, step.name, root=artifact_root)
-        run._write_record_atomically(rec_data, rec_file)
+        run.write_record_atomically(rec_data, rec_file)
 
     return b, stores_root, artifact_root
 
@@ -230,7 +235,7 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         corrupt_rec = json.loads(build_rec_p.read_text(encoding="utf-8"))
         corrupt_rec["exit_code"] = 1
         corrupt_rec["success"] = False
-        run._write_record_atomically(corrupt_rec, build_rec_p)
+        run.write_record_atomically(corrupt_rec, build_rec_p)
 
         with self.assertRaises(StepFailedError):
             register_release(b, registry_root=stores_root, artifact_root=artifact_root)
@@ -243,7 +248,7 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         # 2. Fix the step record and execute register_release successfully
         corrupt_rec["exit_code"] = 0
         corrupt_rec["success"] = True
-        run._write_record_atomically(corrupt_rec, build_rec_p)
+        run.write_record_atomically(corrupt_rec, build_rec_p)
 
         val_result = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         self.assertEqual(val_result["status"], "passed")
@@ -286,7 +291,7 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
             payload = json.loads(rec["stdout"]) if rec.get("stdout", "").strip() else {}
             payload.pop("n_analyses", None)
             rec["stdout"] = json.dumps(payload) + "\n"
-            run._write_record_atomically(rec, rec_p)
+            run.write_record_atomically(rec, rec_p)
 
         val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         self.assertEqual(val_data["observed"]["n_analyses"], 2)
@@ -303,7 +308,7 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
             "n_analyses": 50,
         }) + "\n"
         build_rec["elapsed_seconds"] = 10.5
-        run._write_record_atomically(build_rec, build_rec_p)
+        run.write_record_atomically(build_rec, build_rec_p)
 
         val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         obs = val_data["observed"]
@@ -580,7 +585,7 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         validate = json.loads(validate_p.read_text(encoding="utf-8"))
         validate["opengwasdb_rev"] = "b" * 40
         validate["opengwasdb_version"] = "0.3.3"
-        run._write_record_atomically(validate, validate_p)
+        run.write_record_atomically(validate, validate_p)
         build = run.load_record("OGS-00051", "build", root=artifact_root)
         self.assertEqual(build["opengwasdb_rev"], "a9e8bc825af692cdb5bb7cba39d56d11654fcebe")
 
@@ -712,6 +717,53 @@ class TestStoreFacts(unittest.TestCase):
         self.assertIs(observed["has_hm3"], False)
         self.assertIsNone(observed["has_rho"])
 
+    def test_a_recipe_with_clumps_records_has_clumps_and_the_engines_counts(self) -> None:
+        """`has_clumps` and the engine's own `n_loci_5e8`/`n_unclumped_5e8` are recorded; none is computed here (#526)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00068",
+            post={
+                "top_hits": True, "rho": True, "clumps": True,
+                "ld_stores": {"EUR": "/ld/EUR"}, "overview": True, "validate": True,
+            },
+        )
+        self.assertIn("clump", [step.name for step in plan(b, artifact_root=artifact_root)])
+
+        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
+
+        self.assertIs(observed["has_clumps"], True)
+        self.assertEqual((observed["n_loci_5e8"], observed["n_unclumped_5e8"]), (16, 3))
+
+    def test_a_recipe_without_clumps_records_null_not_false(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00069")
+
+        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
+
+        self.assertEqual(
+            (observed["has_clumps"], observed["n_loci_5e8"], observed["n_unclumped_5e8"]), (None, None, None)
+        )
+
+    def test_clump_facts_failed_missing_and_malformed(self) -> None:
+        steps = [Step("clump", [], [], [])]
+        self.assertEqual(
+            register.clump_facts(steps, {"clump": {"success": False, "exit_code": 1}}),
+            {"has_clumps": False, "n_loci_5e8": None, "n_unclumped_5e8": None},
+        )
+        self.assertIsNone(register.clump_facts(steps, {})["has_clumps"], "a planned step with no record is unknown")
+        ok = {"success": True, "exit_code": 0}
+        self.assertEqual(
+            register.clump_facts(steps, {"clump": {**ok, "stdout": "{}"}}),
+            {"has_clumps": True, "n_loci_5e8": None, "n_unclumped_5e8": None},
+        )
+        self.assertEqual(
+            register.clump_facts(steps, {"clump": {**ok, "stdout": '{"n_loci_5e8": null, "n_unclumped_5e8": 7}'}}),
+            {"has_clumps": True, "n_loci_5e8": None, "n_unclumped_5e8": 7},
+            "the engine prints null loci when it clumped nothing",
+        )
+        for bad in ('{"n_loci_5e8": "16"}', '{"n_unclumped_5e8": -1}', '{"n_loci_5e8": true}'):
+            with self.assertRaises(register.ObservedMeasurementError):
+                register.clump_facts(steps, {"clump": {**ok, "stdout": bad}})
+
     def test_a_completion_phase_reads_its_own_steps(self) -> None:
         """A release completing its own Store reports what its completion phase built (ADR 0037)."""
         b, stores_root, artifact_root = create_test_bundle_and_records(
@@ -830,7 +882,7 @@ def set_build_stdout(store_id: str, artifact_root: Path, payload: dict[str, Any]
     rec_p = paths.record_path(store_id, "build", root=artifact_root)
     rec = json.loads(rec_p.read_text(encoding="utf-8"))
     rec["stdout"] = json.dumps(payload) + "\n"
-    run._write_record_atomically(rec, rec_p)
+    run.write_record_atomically(rec, rec_p)
 
 
 def set_validate_output(store_id: str, artifact_root: Path, stdout: str, stderr: str = "") -> None:
@@ -839,7 +891,7 @@ def set_validate_output(store_id: str, artifact_root: Path, stdout: str, stderr:
     rec = json.loads(rec_p.read_text(encoding="utf-8"))
     rec["stdout"] = stdout
     rec["stderr"] = stderr
-    run._write_record_atomically(rec, rec_p)
+    run.write_record_atomically(rec, rec_p)
 
 
 def set_step_stdout(
@@ -849,7 +901,7 @@ def set_step_stdout(
     rec_p = paths.record_path(store_id, step_name, root=artifact_root)
     rec = json.loads(rec_p.read_text(encoding="utf-8"))
     rec["stdout"] = json.dumps(payload) + "\n"
-    run._write_record_atomically(rec, rec_p)
+    run.write_record_atomically(rec, rec_p)
 
 
 #: A Ragged Store Release's post-processing: it has no `overview.html`, so a
@@ -941,7 +993,7 @@ class TestRegisterRecordsOnlyThisRun(unittest.TestCase):
         rec_p = paths.record_path(b.store_id, "build", root=artifact_root)
         rec = json.loads(rec_p.read_text(encoding="utf-8"))
         rec["stdout"] = json.dumps({"n_variants": 1000, "n_analyses": 2}) + "\n"
-        run._write_record_atomically(rec, rec_p)
+        run.write_record_atomically(rec, rec_p)
 
         written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
@@ -1744,6 +1796,69 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertFalse(paths.publication_marker(b.store_id, root=artifact_root).exists())
         self.assertFalse(paths.partial_store_path(b.store_id, root=artifact_root).exists())
 
+    def build_without_a_step_the_recipe_now_plans(self) -> tuple[Bundle, Path, Path]:
+        """A build published before `post.clumps` joined the recipe (#532, ADR 0044).
+
+        The recipe plans a build-phase `clump`; the published build never ran it,
+        and its register verified only the steps it ran.
+        """
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            self.STORE_ID,
+            completion_state="reference_completed",
+            command="complete-dense",
+            options={"ld-panel": "/data/ld", "ancestry": "EUR"},
+            post={
+                "top_hits": False, "rho": False, "clumps": True,
+                "ld_stores": {"EUR": "/ld/EUR"}, "overview": True, "validate": True,
+            },
+        )
+        self.publish_build_phase(b, stores_root, artifact_root)
+        register_p = paths.record_path(b.store_id, "register", root=artifact_root)
+        clump_p = paths.record_path(b.store_id, "clump", root=artifact_root)
+        record = json.loads(register_p.read_text())
+        record["inputs"] = [path for path in record["inputs"] if Path(path).stem != "clump"]
+        register_p.write_text(json.dumps(record))
+        clump_p.unlink()
+        return bundle.load(b.store_id, registry_root=stores_root), stores_root, artifact_root
+
+    def test_a_post_step_added_after_the_build_published_is_not_required_of_it(self) -> None:
+        b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
+        planned = plan(b, artifact_root=artifact_root)
+        self.assertIn("clump", [s.name for s in planned if s.phase == "build"], "the recipe plans it")
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+
+        # The elapsed total is the steps that ran: the build's and the completion's, not the missing one.
+        ran = [s.name for s in planned if paths.record_path(b.store_id, s.name, root=artifact_root).is_file()]
+        self.assertNotIn("clump", ran)
+        self.assertEqual(written["observed"]["build_elapsed_s"], 5.0 * len(ran) - 5.0 * sum(
+            1 for name in ran if name in ("register", "completion-register")))
+
+    def test_an_earlier_register_that_cannot_say_what_it_verified_skips_nothing(self) -> None:
+        """No register record, or one with no `inputs`: the missing `clump` record is required."""
+        for name, damage in (
+            ("missing", lambda record_p: record_p.unlink()),
+            ("no inputs", lambda record_p: record_p.write_text(
+                json.dumps({**json.loads(record_p.read_text()), "inputs": []}))),
+        ):
+            with self.subTest(name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    self.td = Path(tmp)
+                    b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
+                    damage(paths.record_path(b.store_id, "register", root=artifact_root))
+                    with self.assertRaises(MissingRecordError) as raised:
+                        register_release(b, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+                    self.assertIn("'clump'", str(raised.exception))
+
+    def test_an_earlier_step_the_build_verified_is_still_required(self) -> None:
+        b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
+        paths.record_path(b.store_id, "build", root=artifact_root).unlink()
+
+        with self.assertRaises(MissingRecordError) as raised:
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+        self.assertIn("'build'", str(raised.exception))
+
     def assert_completion_refused(self, check_stdout: str | None, reason: str) -> None:
         """With this check record stdout (None: no record), the completion phase changes nothing (#309)."""
         b, stores_root, artifact_root = self.built_and_completed(Path(tempfile.mkdtemp(dir=self.td)))
@@ -2223,7 +2338,7 @@ class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
         build_rec_p = paths.record_path("OGS-00044", "build", root=artifact_root)
         rec = json.loads(build_rec_p.read_text(encoding="utf-8"))
         rec["argv"].append("--unexpected-flag")
-        run._write_record_atomically(rec, build_rec_p)
+        run.write_record_atomically(rec, build_rec_p)
 
         with self.assertRaises(ArgvDriftError) as ctx:
             register_release(b, registry_root=stores_root, artifact_root=artifact_root)
@@ -2246,7 +2361,7 @@ class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
             index = record[key].index("--admission-record")
             self.assertEqual(record[key][index + 1], expected)
             record[key] = [*record[key][:index], *record[key][index + 2:]]
-        run._write_record_atomically(record, record_p)
+        run.write_record_atomically(record, record_p)
         # The fixture is the case under test: the plan composes the pair, the record names none.
         self.assertIn("--admission-record", planned.argv)
         self.assertNotIn("--admission-record", " ".join(record["argv"]))
@@ -2270,7 +2385,7 @@ class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
         """Only a record that names *no* Admission record is tolerated, never one put elsewhere."""
         b, stores_root, artifact_root, planned, record, record_p = self._build_record_from_before_428("OGS-00048")
         record["argv"] = [*record["argv"], "--admission-record", "/elsewhere.admission"]
-        run._write_record_atomically(record, record_p)
+        run.write_record_atomically(record, record_p)
         with self.assertRaises(ArgvDriftError) as ctx:
             register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         self.assertIn("/elsewhere.admission", str(ctx.exception))
@@ -2279,7 +2394,7 @@ class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
         """The pair is the one difference tolerated; any other token is still drift."""
         b, stores_root, artifact_root, planned, record, record_p = self._build_record_from_before_428("OGS-00049")
         record["argv"] = [*record["argv"], "--unexpected-flag"]
-        run._write_record_atomically(record, record_p)
+        run.write_record_atomically(record, record_p)
         with self.assertRaises(ArgvDriftError) as ctx:
             register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         self.assertIn("--unexpected-flag", str(ctx.exception))
@@ -2299,7 +2414,7 @@ class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
         rec = json.loads(comp_rec_p.read_text(encoding="utf-8"))
         ckpt_path = str(paths.partial_store_path("OGS-00045", root=artifact_root).parent / ".store.opengwasdb.partial.checkpoint")
         rec["argv"] = ["opengwasdb", "complete-dense-resume", ckpt_path]
-        run._write_record_atomically(rec, comp_rec_p)
+        run.write_record_atomically(rec, comp_rec_p)
 
         val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
         self.assertTrue(val_data["observed"].get("resumed"), "Expected observed.resumed to be True")
@@ -2446,7 +2561,7 @@ class TestVariantReferenceRegistration(unittest.TestCase):
         rec["skipped"] = True
         rec["skip_reason"] = "provided"
         rec["elapsed_seconds"] = 0.0
-        run._write_record_atomically(rec, rec_p)
+        run.write_record_atomically(rec, rec_p)
 
         val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
         self.assertEqual(val["status"], "passed")
@@ -2458,7 +2573,7 @@ class TestVariantReferenceRegistration(unittest.TestCase):
         rec = json.loads(rec_p.read_text(encoding="utf-8"))
         idx = rec["argv"].index("--n-workers")
         rec["argv"][idx + 1] = "8"
-        run._write_record_atomically(rec, rec_p)
+        run.write_record_atomically(rec, rec_p)
 
         with self.assertRaises(ArgvDriftError):
             register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
@@ -2480,7 +2595,7 @@ class TestVariantReferenceRegistration(unittest.TestCase):
         rec["argv"] = list(rec["planned_argv"])
         rec["skipped"] = True
         rec["skip_reason"] = "provided"
-        run._write_record_atomically(rec, rec_p)
+        run.write_record_atomically(rec, rec_p)
 
         val = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
         self.assertEqual(val["observed"]["variant_reference"], "provided")

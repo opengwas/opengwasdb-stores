@@ -62,6 +62,7 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 import resource
 import sys
 import tempfile
@@ -723,6 +724,21 @@ def _scan_fixed_width_index(path: Path, scan: _IdentityScan) -> _AlidIndexScan:
 # ---------------------------------------------------------------------------
 # The construction variant reference
 # ---------------------------------------------------------------------------
+
+
+_NEW_PANEL_VARIANTS = re.compile(r"\(([\d,]+) new panel variants\)")
+
+
+def _completion_new_panel_variants(store_path: Path) -> int | None:
+    """The new-panel count the completion's record logged ("Union variant axis: N variants (M new panel
+    variants)"), or None when `records/complete.json` is missing, unreadable or says none."""
+    record = store_path.parent / "records" / "complete.json"
+    try:
+        stdout = json.loads(record.read_text(encoding="utf-8")).get("stdout")
+    except (OSError, ValueError, AttributeError):
+        return None
+    found = _NEW_PANEL_VARIANTS.search(stdout) if isinstance(stdout, str) else None
+    return int(found.group(1).replace(",", "")) if found else None
 
 
 def _reference_facts(
@@ -1558,25 +1574,58 @@ def reconcile(
                     "construction reference have no shared-axis row",
                     missing=facts["reference_alids_missing_from_axis"],
                 )
-            if (
-                facts["dense_mapping_not_in_reference"]
-                or facts["reference_rows_not_in_dense_mapping"]
-            ):
+            completed = manifest.completion_state.value == "reference_completed"
+            extra_dense = facts["dense_mapping_not_in_reference"]
+            if completed:
+                # A Reference Completion's Dense axis is the construction reference plus
+                # the LD panel's variants (ADR 0037): the reference must be a subset of
+                # it, and the extra rows are what the completion added (stores#544).
+                if facts["reference_rows_not_in_dense_mapping"]:
+                    inconsistency(
+                        "reference_not_a_subset_of_dense",
+                        f"{facts['reference_rows_not_in_dense_mapping']} construction-reference "
+                        "variants are off the Dense Component of a Reference-Completed Store, "
+                        "whose Dense Component must contain the whole reference",
+                        reference_rows_not_dense=facts["reference_rows_not_in_dense_mapping"],
+                    )
+                added = _completion_new_panel_variants(path)
+                facts["completion_new_panel_variants"] = added
                 inconsistency(
-                    "panel_partition_disagrees_with_reference",
-                    "the Dense Component's row set is not exactly the construction "
-                    f"reference's: {facts['dense_mapping_not_in_reference']} Dense-axis "
-                    f"rows are absent from the reference and "
-                    f"{facts['reference_rows_not_in_dense_mapping']} reference variants "
-                    "are off the Dense Component",
-                    dense_rows_not_in_reference=facts["dense_mapping_not_in_reference"],
-                    reference_rows_not_dense=facts["reference_rows_not_in_dense_mapping"],
+                    "dense_rows_beyond_reference",
+                    f"{extra_dense} Dense-axis rows are not in the construction reference: "
+                    "the LD panel's variants the completion added (ADR 0037)",
+                    severity="finding",
+                    dense_rows_not_in_reference=extra_dense,
+                    completion_record_new_panel_variants=added,
                 )
-            if facts["axis_rows_in_reference"] != n_dense:
+                if added is not None and added != extra_dense:
+                    inconsistency(
+                        "completion_new_panel_count_disagrees",
+                        f"{extra_dense} Dense-axis rows are beyond the construction reference "
+                        f"but the completion record says it added {added} new panel variants",
+                        dense_rows_not_in_reference=extra_dense,
+                        completion_record_new_panel_variants=added,
+                    )
+                expected_overlap = n_dense - extra_dense
+            else:
+                expected_overlap = n_dense
+                if extra_dense or facts["reference_rows_not_in_dense_mapping"]:
+                    inconsistency(
+                        "panel_partition_disagrees_with_reference",
+                        "the Dense Component's row set is not exactly the construction "
+                        f"reference's: {facts['dense_mapping_not_in_reference']} Dense-axis "
+                        f"rows are absent from the reference and "
+                        f"{facts['reference_rows_not_in_dense_mapping']} reference variants "
+                        "are off the Dense Component",
+                        dense_rows_not_in_reference=facts["dense_mapping_not_in_reference"],
+                        reference_rows_not_dense=facts["reference_rows_not_in_dense_mapping"],
+                    )
+            if facts["axis_rows_in_reference"] != expected_overlap:
                 inconsistency(
                     "reference_overlap_disagrees_with_panel",
                     f"{facts['axis_rows_in_reference']} axis rows are in the "
-                    f"construction reference but the Dense Component covers {n_dense}",
+                    f"construction reference but the Dense Component covers {n_dense}"
+                    + (f", {extra_dense} of them beyond the reference" if completed else ""),
                     axis_rows_in_reference=facts["axis_rows_in_reference"],
                     n_dense=n_dense,
                 )

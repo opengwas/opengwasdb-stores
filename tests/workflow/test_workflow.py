@@ -444,11 +444,14 @@ def create_dense_fixture_store(
     variant_reference_output: str | None = None,
     variant_reference_options: dict | None = None,
     status: str = "accepted",
+    post_extra: dict | None = None,
+    trial: bool = False,
 ) -> Path:
     """Create a complete fixture Release Bundle under stores_dir/<store_id>.
 
     It is `accepted` unless `status` says otherwise: the release workflow
-    refuses a candidate (#247).
+    refuses a candidate (#247). `post_extra` adds keys to the recipe's `post`
+    block (`clumps`, `ld_stores`); `trial` declares a Trial Store Release.
     """
     store_dir = stores_dir / store_id
     store_dir.mkdir(parents=True, exist_ok=True)
@@ -469,7 +472,7 @@ def create_dense_fixture_store(
         "created_at": "2026-08-18T08:51:59Z",
         "description": f"Fixture dense store {store_id} for workflow testing",
         "source_snapshot_id": "test-snapshot",
-        "release_kind": "pilot",
+        **({"trial": True} if trial else {"release_kind": "pilot"}),
         "generator": {"command": "test-generator"},
     }
 
@@ -499,6 +502,7 @@ def create_dense_fixture_store(
             "rho": post_rho,
             "overview": post_overview,
             "validate": post_validate,
+            **(post_extra or {}),
         },
         "artifacts": {"root": art_root_str},
     }
@@ -5108,7 +5112,7 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
         if recorded_admission_record is not None:
             record["planned_argv"] = [*record["planned_argv"], "--admission-record", recorded_admission_record]
         if recorded_coverage is not None or recorded_admission_record is not None:
-            run._write_record_atomically(record, record_p)
+            run.write_record_atomically(record, record_p)
         return bundle.load(self.STORE_ID, registry_root=stores), artifacts
 
     def test_a_legacy_store_may_gain_its_completion_but_no_other_amendment(self) -> None:

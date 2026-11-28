@@ -95,6 +95,7 @@ from ogstores.bundle import (
     column_map_binding,
     indexed_subset_step_name,
     is_valid_indexed_subset_name,
+    ld_store_mapping_problem,
     normalize_option_key,
     reserved_options,
     unrenderable_options,
@@ -142,6 +143,11 @@ class IndexedSubsetDeclaration:
     reference_assembly: str
     checksum: str | None
     options: dict[str, Any]
+
+
+#: The engine's in-place Clumps command (opengwasdb ADR 0106, spec §18.1): one command
+#: for every layout, planned as `rho` is (#526).
+CLUMP_COMMAND: str = "clump"
 
 
 @dataclass(frozen=True)
@@ -199,13 +205,15 @@ COMMANDS: dict[str, CommandSpec] = {
         rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
-    # Hybrid builds top-hit indexes inline during build-hybrid; rho is dense-only.
+    # Hybrid builds top-hit indexes inline during build-hybrid; its Rho Matrix is built in
+    # the Dense Component by `build-dense-rho <hybrid release>` (#529, opengwasdb#496).
     "build-hybrid": CommandSpec(
         phase="build",
         name="hybrid",
         positionals=("analyses", "store"),
         inputs=("analyses",),
         column_map=True,
+        rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
     RAGGED_SSF_COMMAND: CommandSpec(
@@ -243,6 +251,7 @@ COMMANDS: dict[str, CommandSpec] = {
         positionals=("parent_store", "store"),
         inputs=("parent_store",),
         identity=False,
+        rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
     # The Ragged Observed-View Check rebuilds the regions completion retained
@@ -337,6 +346,7 @@ ADMISSION_RECORD_FLAG: str = "admission-record"
 # releases").
 POST_DEFAULTS: dict[str, Any] = {
     "rho": False,
+    "clumps": False,
     "validate": True,
 }
 
@@ -544,6 +554,25 @@ def declared_top_hits(post: dict[str, Any]) -> bool:
     return declared
 
 
+def declared_ld_stores(post: Mapping[str, Any]) -> list[str]:
+    """The `--ld-store ANCESTRY=PATH` argv a recipe's `post.ld_stores` mapping declares, sorted by ancestry.
+
+    The mapping is explicit recipe config and never defaulted (#526): the LD Store an
+    ancestry is clumped against is a build input the bundle freezes, as `besd_prefix` is.
+    Empty when none is declared; `_post_steps` refuses that when `post.clumps` is true.
+    """
+    declared = post.get("ld_stores")
+    if declared is None:
+        return []
+    problem = ld_store_mapping_problem(declared)
+    if problem is not None:
+        raise ValueError(problem)
+    argv: list[str] = []
+    for ancestry in sorted(declared):
+        argv.extend(["--ld-store", f"{ancestry}={declared[ancestry]}"])
+    return argv
+
+
 def _post_steps(
     store_p: Path, post: dict[str, Any], spec: CommandSpec, n_workers: int | None = None
 ) -> list[Step]:
@@ -557,6 +586,16 @@ def _post_steps(
     """
     post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
+    clumps_declared = post.get("clumps")
+    if not isinstance(clumps_declared, bool):
+        raise ValueError(f"post.clumps is {clumps_declared!r}; it is true or false")
+    ld_store_argv = declared_ld_stores(post) if clumps_declared else []
+    if clumps_declared and not ld_store_argv:
+        raise ValueError(
+            "post.clumps is true but the recipe declares no post.ld_stores mapping "
+            "(ANCESTRY: LD Store path): the LD Store an ancestry is clumped against is "
+            "never defaulted (#526)"
+        )
 
     top_hits_declared = declared_top_hits(post)
     if top_hits_declared:
@@ -578,12 +617,22 @@ def _post_steps(
     if post.get("rho"):
         if spec.rho_cmd is None:
             raise ValueError(
-                f"rho post-processing is valid only for dense layout, not {spec.name!r}"
+                f"rho post-processing is valid only for dense and hybrid layouts, not the ragged layout ({spec.name!r})"
             )
         steps.append(
             Step(
                 name="rho",
                 argv=["opengwasdb", spec.rho_cmd, str(store_p)],
+                inputs=[store_p],
+                outputs=[store_p],
+            )
+        )
+
+    if clumps_declared:
+        steps.append(
+            Step(
+                name="clump",
+                argv=["opengwasdb", CLUMP_COMMAND, str(store_p), *ld_store_argv],
                 inputs=[store_p],
                 outputs=[store_p],
             )
@@ -616,6 +665,8 @@ def _post_steps(
                     "--format",
                     "json",
                     *(["--" + WORKERS_FLAG, str(n_workers)] if n_workers is not None else []),
+                    # `clumps.reclump` runs only given the LD Stores (spec §20.0).
+                    *ld_store_argv,
                 ],
                 inputs=[store_p],
                 outputs=[],

@@ -931,6 +931,74 @@ class TestReconciledAgainstWhatTheStoreRecords(AuditTestCase):
         self.assertFalse(target.exists())
 
 
+class TestCompletedHybrid(AuditTestCase):
+    """A Reference-Completed Hybrid's Dense axis is the reference plus the LD panel's variants (stores#544, ADR 0037)."""
+
+    def completed(self, *, dense_rows: list[int], reference_rows: list[int], logged_new: int | None) -> Path:
+        variants = axis_variants(5)
+        store, _ = build_hybrid_store(
+            self.tmp,
+            variants=variants,
+            counts=[0 if row in dense_rows else 1 for row in range(5)],
+            dense_rows=dense_rows,
+            reference_alids=[variants[row].alid for row in reference_rows],
+        )
+        manifest_path = store / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["completion_state"] = "reference_completed"
+        manifest_path.write_text(json.dumps(manifest))
+        if logged_new is not None:
+            records = store.parent / "records"
+            records.mkdir(exist_ok=True)
+            (records / "complete.json").write_text(json.dumps({
+                "stdout": f"Union variant axis: 5 variants ({logged_new} new panel variants)\n"
+            }))
+        return store
+
+    def test_a_reference_inside_the_dense_axis_is_a_finding_not_an_error(self) -> None:
+        store = self.completed(dense_rows=[0, 1, 2], reference_rows=[0, 1], logged_new=1)
+
+        code, report = self.reconcile(store)
+        record_check()
+
+        errors = [e["kind"] for e in report["inconsistencies"] if e["severity"] == "error"]
+        self.assertEqual((code, errors), (0, []), report["inconsistencies"])
+        (finding,) = [e for e in report["inconsistencies"] if e["kind"] == "dense_rows_beyond_reference"]
+        self.assertEqual(finding["severity"], "finding")
+        self.assertEqual(finding["counts"]["dense_rows_not_in_reference"], 1)
+        self.assertEqual(finding["counts"]["completion_record_new_panel_variants"], 1)
+        self.assertEqual(report["reference"]["reference_rows_not_in_dense_mapping"], 0)
+        self.assertEqual(report["reference"]["reference_alids_missing_from_axis"], 0)
+
+    def test_the_extra_rows_are_checked_against_the_completion_record_when_readable(self) -> None:
+        store = self.completed(dense_rows=[0, 1, 2], reference_rows=[0, 1], logged_new=7)
+
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertIn("completion_new_panel_count_disagrees", [e["kind"] for e in report["inconsistencies"]])
+        self.assertEqual(code, 1)
+
+    def test_an_unreadable_completion_record_leaves_the_count_unchecked(self) -> None:
+        store = self.completed(dense_rows=[0, 1, 2], reference_rows=[0, 1], logged_new=None)
+
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 0, report["inconsistencies"])
+        self.assertIsNone(report["reference"]["completion_new_panel_variants"])
+
+    def test_a_reference_row_off_the_dense_axis_is_still_an_error(self) -> None:
+        store = self.completed(dense_rows=[0, 1], reference_rows=[0, 1, 2], logged_new=0)
+
+        code, report = self.reconcile(store)
+        record_check()
+
+        kinds = [e["kind"] for e in report["inconsistencies"] if e["severity"] == "error"]
+        self.assertIn("reference_not_a_subset_of_dense", kinds)
+        self.assertEqual(code, 1)
+
+
 class TestFailLoudlyOnMissingOrContradictedEvidence(AuditTestCase):
     """A Store whose own account is unreadable or contradicted never passes.
 

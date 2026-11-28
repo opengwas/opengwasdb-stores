@@ -1,187 +1,229 @@
 status: passed_with_warnings
-validated_at: '2026-11-05T18:09:28Z'
+validated_at: '2026-11-27T00:51:20.526483Z'
 validator:
-  name: manifest_generation.generate_candidate
-  version: null
+  name: opengwasdb validate
+  version: opengwasdb@964ac1b28a3096553559d4a8565d877a884470e9
 build_environment:
-  opengwasdb_version: 0.3.3
-  opengwasdb_commit: 1f1e289a47e84f79434263235e01ff8a94c4d37c
+  opengwasdb_version: 0.26.0
+  opengwasdb_commit: 964ac1b28a3096553559d4a8565d877a884470e9
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
+  engines:
+  - opengwasdb_commit: 964ac1b28a3096553559d4a8565d877a884470e9
+    opengwasdb_version: 0.26.0
+    steps:
+    - complete
+    - completion-rho
+    - completion-clump
+    - completion-indexed-subset-hm3
+    - completion-overview
+    - completion-validate
+    - completion-observed-view-check
 observed:
-  format_version: null
-  n_analyses: null
-  n_variants: null
+  format_version: 0.3.0
+  n_analyses: 369
+  n_variants: 18286586
   n_associations: null
-  store_bytes: null
-  build_elapsed_s: null
-  validate_status: null
+  association_coverage: gwas
+  reference_assembly: null
+  store_bytes: 16382628113
+  has_hm3: true
+  has_rho: true
+  n_top_hits: null
+  has_clumps: true
+  n_loci_5e8: 11953
+  n_unclumped_5e8: 162796
+  build_elapsed_s: 13301.009
+  validate_status: passed
+  completion_state: reference_completed
+  rsid_conflicts:
+    policy: refuse
+    n_keys: 0
+    n_variants: 0
 checks:
-  schema: passed
-  files: passed
-  ancestry: passed_with_warnings
-  effect_scale: passed_with_warnings
-  sd_estimation: passed_with_warnings
-  reference_overlap: passed
-reference_overlap:
-  low_overlap_threshold: 0.05
-  max_off_reference_share: 0.25
-  included_measured: 379
-  ancestry_median_rate: 0.520966297108568
-  ancestry_p05_rate: 0.21648301690732363
-  ancestry_low_overlap_analyses:
-  - GCST003467
-  - GCST006619
-  - GCST009869
-  - GCST010006
-  - GCST011096
-  - GCST90011768
-  - GCST90011866
-  - GCST90011892
-  - GCST90011893
-  - GCST90011894
-  - GCST90013413
-  - GCST90014238
-  - GCST90026455
-  - GCST90093113
-  - GCST90103751
-  - GCST90103752
-  - GCST90103753
-  - GCST90103754
-  - GCST90104897
-  - GCST90129505
-  - GCST90132222
-  - GCST90132224
-  - GCST90132225
-  - GCST90132227
-  - GCST90432173
-  median_rate: 0.9114464599295975
-  p05_rate: 0.8228169326858323
-  p10_rate: 0.8242930388319664
-  low_overlap_count: 0
-  low_overlap_analyses: []
-  projected_off_reference_share: 0.10951889956533671
-  projected_off_reference_basis: build_eligible_rows
-  worst_contributors:
-  - GCST90274716
-  - GCST90002299
-  - GCST90002293
-  - GCST90002352
-  - GCST90002341
-  - GCST90002317
-  - GCST90002305
-  - GCST90002335
-  - GCST90002323
-  - GCST90002329
-store_composition:
-  require_maf_filtered: true
-  maf_floor: '0.005'
-  unfiltered_included: 0
-  unfiltered_included_off_reference_rows: 0
-  unfiltered_routed: 132
-  unfiltered_routed_off_reference_rows: 160890644
-quality_checks:
-  build_eligible_rows:
-    kind: exclusion
-    stage: resolved
-    measures: 'diagnostics.build_eligible_rows: rows with a finite effect and a positive standard error,
-      after any INFO and MAF floor'
-    threshold: 1
-    default_threshold: 1
-    overridden: false
-    results:
-      passed: 651
-      failed: 58
-      not_applicable: 0
-      unmeasured: 0
-      invalid: 0
-      warning: 0
-    excluded: 58
-  effect_placeholder_rows:
-    kind: exclusion
-    stage: resolved
-    measures: rows whose effect is the +/-2.2e-308 placeholder, from the reviewed release_policy.effect_placeholder_exclusions
-      listing until core counts them
-    threshold: null
-    default_threshold: null
-    overridden: false
-    results:
-      passed: 602
-      failed: 107
-      not_applicable: 0
-      unmeasured: 0
-      invalid: 0
-      warning: 0
-    excluded: 99
-  eaf_orientation:
-    kind: exclusion
-    stage: ancestry_read
-    measures: ancestry.eaf_orientation and ancestry.gate_reason
-    threshold: null
-    default_threshold: null
-    overridden: false
-    results:
-      passed: 708
-      failed: 1
-      not_applicable: 0
-      unmeasured: 0
-      invalid: 0
-      warning: 0
-    excluded: 0
-  assigned_ancestry:
-    kind: exclusion
-    stage: selection
-    measures: ancestry.assigned_ancestry against the Selection's super-population; for a source with no
-      allele frequency, its source_superpopulation when the release trusts it
-    threshold: null
-    default_threshold: null
-    overridden: false
-    results:
-      passed: 594
-      failed: 115
-      not_applicable: 0
-      unmeasured: 0
-      invalid: 0
-      warning: 0
-    excluded: 41
-    warned: 0
-  phenotype_sd:
-    kind: exclusion
-    stage: target_ancestry
-    measures: phenotype_sd.status, phenotype_sd.reason and phenotype_sd.estimate.sd
-    threshold: null
-    default_threshold: null
-    overridden: false
-    results:
-      passed: 470
-      failed: 32
-      not_applicable: 207
-      unmeasured: 0
-      invalid: 0
-      warning: 0
-    excluded: 0
-trait_ontology_mapping:
-  canonical_trait_mapping_table:
-    resource_id: canonical-trait-mapping-efo
-    version: 3
-    location: resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv
-    sha256: 8be02ae087644179a984a013700d2a5d3a0b85e5b7e5d6efe42c6ef19162e60b
-    rows: 550
-  method_counts:
-    source_provided: 709
-    canonical_table_lookup: 0
-    unmapped: 0
-  source_id_without_label: 0
-  rejected_source_terms: []
-reports:
-  source_readiness: sidecars/source_readiness.tsv
-  ancestry: sidecars/ancestry.tsv
-  sd_estimation: sidecars/sd_estimation.tsv
-  exclusions: sidecars/exclusions.tsv
-  reference_overlap: sidecars/reference_overlap.tsv
-  quality_checks: sidecars/quality_checks.tsv
+  store: passed
 warnings:
-- 41 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation failure); see
-  sidecars/exclusions.tsv
-- 27 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
-- 132 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
-  (#203); see sidecars/exclusions.tsv
+- built with opengwasdb 0.26.0 (964ac1b28a3096553559d4a8565d877a884470e9), but its
+  Analyses were resolved with opengwasdb 0.3.3 (1f1e289a47e84f79434263235e01ff8a94c4d37c);
+  regenerate the candidate under this engine if the resolver changed between them
 errors: []
+acceptance:
+  recorded_at: '2026-11-05T18:09:28Z'
+  commit: 156a5e3bf2b0a9a820aba976c03374fa9dc6f761
+  resolver_engine:
+    opengwasdb_commit: 1f1e289a47e84f79434263235e01ff8a94c4d37c
+    opengwasdb_version: 0.3.3
+  checks:
+    schema: passed
+    files: passed
+    ancestry: passed_with_warnings
+    effect_scale: passed_with_warnings
+    sd_estimation: passed_with_warnings
+    reference_overlap: passed
+  reference_overlap:
+    low_overlap_threshold: 0.05
+    max_off_reference_share: 0.25
+    included_measured: 379
+    ancestry_median_rate: 0.520966297108568
+    ancestry_p05_rate: 0.21648301690732363
+    ancestry_low_overlap_analyses:
+    - GCST003467
+    - GCST006619
+    - GCST009869
+    - GCST010006
+    - GCST011096
+    - GCST90011768
+    - GCST90011866
+    - GCST90011892
+    - GCST90011893
+    - GCST90011894
+    - GCST90013413
+    - GCST90014238
+    - GCST90026455
+    - GCST90093113
+    - GCST90103751
+    - GCST90103752
+    - GCST90103753
+    - GCST90103754
+    - GCST90104897
+    - GCST90129505
+    - GCST90132222
+    - GCST90132224
+    - GCST90132225
+    - GCST90132227
+    - GCST90432173
+    median_rate: 0.9114464599295975
+    p05_rate: 0.8228169326858323
+    p10_rate: 0.8242930388319664
+    low_overlap_count: 0
+    low_overlap_analyses: []
+    projected_off_reference_share: 0.10951889956533671
+    projected_off_reference_basis: build_eligible_rows
+    worst_contributors:
+    - GCST90274716
+    - GCST90002299
+    - GCST90002293
+    - GCST90002352
+    - GCST90002341
+    - GCST90002317
+    - GCST90002305
+    - GCST90002335
+    - GCST90002323
+    - GCST90002329
+  store_composition:
+    require_maf_filtered: true
+    maf_floor: '0.005'
+    unfiltered_included: 0
+    unfiltered_included_off_reference_rows: 0
+    unfiltered_routed: 132
+    unfiltered_routed_off_reference_rows: 160890644
+  quality_checks:
+    build_eligible_rows:
+      kind: exclusion
+      stage: resolved
+      measures: 'diagnostics.build_eligible_rows: rows with a finite effect and a
+        positive standard error, after any INFO and MAF floor'
+      threshold: 1
+      default_threshold: 1
+      overridden: false
+      results:
+        passed: 651
+        failed: 58
+        not_applicable: 0
+        unmeasured: 0
+        invalid: 0
+        warning: 0
+      excluded: 58
+    effect_placeholder_rows:
+      kind: exclusion
+      stage: resolved
+      measures: rows whose effect is the +/-2.2e-308 placeholder, from the reviewed
+        release_policy.effect_placeholder_exclusions listing until core counts them
+      threshold: null
+      default_threshold: null
+      overridden: false
+      results:
+        passed: 602
+        failed: 107
+        not_applicable: 0
+        unmeasured: 0
+        invalid: 0
+        warning: 0
+      excluded: 99
+    eaf_orientation:
+      kind: exclusion
+      stage: ancestry_read
+      measures: ancestry.eaf_orientation and ancestry.gate_reason
+      threshold: null
+      default_threshold: null
+      overridden: false
+      results:
+        passed: 708
+        failed: 1
+        not_applicable: 0
+        unmeasured: 0
+        invalid: 0
+        warning: 0
+      excluded: 0
+    assigned_ancestry:
+      kind: exclusion
+      stage: selection
+      measures: ancestry.assigned_ancestry against the Selection's super-population;
+        for a source with no allele frequency, its source_superpopulation when the
+        release trusts it
+      threshold: null
+      default_threshold: null
+      overridden: false
+      results:
+        passed: 594
+        failed: 115
+        not_applicable: 0
+        unmeasured: 0
+        invalid: 0
+        warning: 0
+      excluded: 41
+      warned: 0
+    phenotype_sd:
+      kind: exclusion
+      stage: target_ancestry
+      measures: phenotype_sd.status, phenotype_sd.reason and phenotype_sd.estimate.sd
+      threshold: null
+      default_threshold: null
+      overridden: false
+      results:
+        passed: 470
+        failed: 32
+        not_applicable: 207
+        unmeasured: 0
+        invalid: 0
+        warning: 0
+      excluded: 0
+  trait_ontology_mapping:
+    canonical_trait_mapping_table:
+      resource_id: canonical-trait-mapping-efo
+      version: 3
+      location: resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv
+      sha256: 8be02ae087644179a984a013700d2a5d3a0b85e5b7e5d6efe42c6ef19162e60b
+      rows: 550
+    method_counts:
+      source_provided: 709
+      canonical_table_lookup: 0
+      unmapped: 0
+    source_id_without_label: 0
+    rejected_source_terms: []
+  reports:
+    source_readiness: sidecars/source_readiness.tsv
+    ancestry: sidecars/ancestry.tsv
+    sd_estimation: sidecars/sd_estimation.tsv
+    exclusions: sidecars/exclusions.tsv
+    reference_overlap: sidecars/reference_overlap.tsv
+    quality_checks: sidecars/quality_checks.tsv
+  warnings:
+  - 41 Analysis/Analyses excluded by ancestry policy (unassigned, non-target, or orientation
+    failure); see sidecars/exclusions.tsv
+  - 27 included Analysis/Analyses have a high-dispersion SD estimate; see sidecars/sd_estimation.tsv
+  - 132 Analysis/Analyses had no MAF floor applied and were excluded from this shared
+    Store as not_maf_filtered (#203); see sidecars/exclusions.tsv
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00032/replaced/20261127T005120Z
+  replaced_at: '2026-11-27T00:51:20.526483Z'

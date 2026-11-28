@@ -1278,6 +1278,8 @@ def _check_build(bundle: Bundle) -> list[str]:
     post = build.get("post")
     if post is not None and not isinstance(post, Mapping):
         errors.append("build.yaml post must be a mapping")
+    elif post is not None and ("clumps" in post or "ld_stores" in post):
+        errors.extend(_check_clumps(post))
     if "artifacts" in build:
         errors.append(
             "build.yaml must not declare 'artifacts'; the artifact root is "
@@ -1299,6 +1301,43 @@ def _check_build(bundle: Bundle) -> list[str]:
                 "'source_snapshot.besd_prefix' for build-ragged-besd"
             )
 
+    return errors
+
+
+def ld_store_mapping_problem(value: Any) -> str | None:
+    """Why `value` is not a `post.ld_stores` mapping, or None when it is (#526).
+
+    The one rule for the LD Store mapping, shared by the bundle check, the planner and the
+    release config: a mapping from each Assigned Ancestry to the LD Store's path, both
+    non-empty strings. Emptiness is the caller's to refuse (it depends on `post.clumps`).
+    """
+    if not isinstance(value, Mapping):
+        return f"post.ld_stores is {value!r}; it maps an ancestry to an LD Store path"
+    for ancestry, path in value.items():
+        if not isinstance(ancestry, str) or not ancestry.strip() or not isinstance(path, str) or not path.strip():
+            return f"post.ld_stores entry {ancestry!r}: {path!r}; both are non-empty strings (ANCESTRY: PATH)"
+    return None
+
+
+def _check_clumps(post: Mapping[str, Any]) -> list[str]:
+    """`post.clumps` is a boolean when the key is present, and when true `post.ld_stores` maps ancestry to path (#526).
+
+    Presence is checked, not non-null: `clumps: null` is malformed, as planning refuses it.
+    The mapping is explicit recipe config and never defaulted.
+    """
+    errors: list[str] = []
+    clumps = post.get("clumps", False)
+    if not isinstance(clumps, bool):
+        errors.append(f"build.yaml post.clumps is {clumps!r}; it is true or false")
+    if "ld_stores" in post:
+        problem = ld_store_mapping_problem(post["ld_stores"])
+        if problem is not None:
+            errors.append(f"build.yaml {problem}")
+    if clumps is True and not post.get("ld_stores"):
+        errors.append(
+            "build.yaml post.clumps is true but post.ld_stores names no LD Store "
+            "(ANCESTRY: PATH); the mapping is never defaulted"
+        )
     return errors
 
 

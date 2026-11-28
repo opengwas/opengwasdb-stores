@@ -26,7 +26,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from urllib.parse import urlsplit
 
 import yaml
@@ -134,28 +134,40 @@ def _dist_info_files(root: Path, filename: str) -> list[str]:
     return [match for pattern in patterns for match in glob.glob(str(pattern))]
 
 
+def _installed(
+    executable: str, env: Mapping[str, str] | None, filename: str, read: Callable[[Path], str | None]
+) -> tuple[Path, str] | None:
+    """The first `opengwasdb*.dist-info/<filename>` of `executable`'s install that `read` answers, and its answer."""
+    if not executable or executable == UNAVAILABLE:
+        return None
+    for root in _metadata_roots(executable, env):
+        for match in _dist_info_files(root, filename):
+            value = read(Path(match))
+            if value:
+                return Path(match), value
+    return None
+
+
 def executable_commit(executable: str, env: Mapping[str, str] | None = None) -> str:
     """The exact commit `executable`'s own install records, or `UNAVAILABLE`."""
-    if not executable or executable == UNAVAILABLE:
-        return UNAVAILABLE
-    for root in _metadata_roots(executable, env):
-        for match in _dist_info_files(root, "direct_url.json"):
-            commit = _commit_from_direct_url_file(Path(match))
-            if commit:
-                return commit
-    return UNAVAILABLE
+    found = _installed(executable, env, "direct_url.json", _commit_from_direct_url_file)
+    return found[1] if found else UNAVAILABLE
+
+
+def executable_install_record(executable: str, env: Mapping[str, str] | None = None) -> Path | None:
+    """The `direct_url.json` `executable_commit` reads its commit from, or None (#533).
+
+    Its mtime is when that install was written: a reinstall replaces it, so a
+    record older than a run says the install then is the install now.
+    """
+    found = _installed(executable, env, "direct_url.json", _commit_from_direct_url_file)
+    return found[0] if found else None
 
 
 def executable_version(executable: str, env: Mapping[str, str] | None = None) -> str:
     """The version `executable`'s own install records, or `UNAVAILABLE`."""
-    if not executable or executable == UNAVAILABLE:
-        return UNAVAILABLE
-    for root in _metadata_roots(executable, env):
-        for match in _dist_info_files(root, "METADATA"):
-            version = _version_from_metadata_file(Path(match))
-            if version:
-                return version
-    return UNAVAILABLE
+    found = _installed(executable, env, "METADATA", _version_from_metadata_file)
+    return found[1] if found else UNAVAILABLE
 
 
 def identify(executable: str | None = None, env: Mapping[str, str] | None = None) -> EngineIdentity:
@@ -278,6 +290,7 @@ __all__ = [
     "UNAVAILABLE",
     "commit_from_direct_url",
     "executable_commit",
+    "executable_install_record",
     "executable_version",
     "find_executable",
     "identify",

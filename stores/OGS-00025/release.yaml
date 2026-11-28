@@ -14,9 +14,18 @@ generator:
   commands:
     - Rscript resources/generators/gwas-ssf-ragged/generate.R --config=families/metabolome-plasma-2023/generators/config-east-asian.yaml --mode=emit
 notes: |
-  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: East Asian, matching the candidates table's own store_key partitioning) rather than the pilot's mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
+  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry
+  (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: East
+  Asian, matching the candidates table's own store_key partitioning) rather than the pilot's
+  mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry
+  from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue
+  #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
 
-  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,038 analyses, 1,176,410 variants, 7,380,542 associations. No duplicate (analysis, variant) conflicts found for this ancestry. Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op (opengwasdb#102). No Reference-Completed sibling exists yet.
+  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,038 analyses, 1,176,410 variants,
+  7,380,542 associations. No duplicate (analysis, variant) conflicts found for this ancestry.
+  Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a
+  cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a
+  no-op (opengwasdb#102). No Reference-Completed sibling exists yet.
 
   Release Erratum (issue #133, applied here during the #252 migration): the
   quantitative Analyses stored `n_cases` and `n_controls` as 0 where the counts
@@ -82,3 +91,55 @@ notes: |
   Archive deleted (2026-11-12). On the owner's decision, the arrays of the Store archived under
   replaced/20261111T234732Z/ were deleted. The archive keeps its records/ and validation.yaml, as
   ADR 0037 keeps on an unforced replacement, so the change stays dated and evidenced.
+
+  2026-11-25: rebuilt at format 0.3.0 (#524, epic #520). The owner approved rebuilding the
+  priority Stores at format 0.3.0 on 2026-11-25 (opengwas/opengwasdb-stores#498), and this one by a
+  forced run on this host: `pixi run -e workflow release OGS-00025 --config force=1`, after
+  `release-dry`, at 4c1cdf88 with opengwasdb 0.20.0 (c8ebe4ca), from 15:13:15 to 15:16:44 UTC, exit 0,
+  in 3 min 53 s wall (peak RSS 3,475,996 kB; load average 14.65 before and 15.68 after, with the 0.2.0
+  conversions running beside it). Steps: build 178.4 s, top-hits 1.8 s, validate 10.4 s. The Store is
+  observed_only, stamped format 0.3.0, and carries the 0.3.0 envelope (the variable-length ALID,
+  position and source_alid sidecars, regions.tsv; no variant_offsets.npy and no index.sqlite); it
+  reads without pysam. Counts against the 0.2.1 build: 1038 Analyses (unchanged), variants 1,176,410
+  to 1,129,442, associations 7,380,542 to 7,086,100. The 294,442 associations it lost are all rows the
+  0.17.0 builder drops as `indel_ssf_unharmonised` (Admission record
+  `store.opengwasdb.admission/admission.json`: 7,380,542 examined, 7,086,100 admitted, no other drop
+  reason), as for every GWAS-SSF Store at 0.3.0 (#514), and the 46,968 variants are the indels that no
+  longer have an association. Stored z and EAF equal the 0.2.1 values on every shared row of the three
+  Analyses compared; SE is now coded from the source's SE coefficients (opengwasdb ADR 0068) and sits
+  within 0.2% of the source's standard error, where 0.2.1 differed by up to 6.4% in those three.
+  validate reports no errors and 1,039 warnings: the same EAF-orientation warning for every Analysis
+  as before, and the note that the Analyses were resolved with opengwasdb 0.1.0 (this unchanged bundle
+  keeps its August resolution). The Validation Record is the one `register` wrote. The 0.2.1 Store it
+  replaced is archived under /data/opengwasdb/stores/OGS-00025/replaced/20261125T151300Z/, kept
+  because the run was forced (#309); deleting it is the owner's call. The Release Status is unchanged
+  at validated.
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block,
+  `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00015
+  (EAS), the Dense Store on the same panel and ancestry. It also adds `post.clumps` with
+  `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the
+  owner's, accepted on #522.
+
+  2026-11-26: completed in place at format 0.3.0, with Clumps (#532, epic #520). The owner approved
+  the run on 2026-11-26 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release OGS-00025` at engine 0.23.0 (e97f07b5, with #532's register fix) ran `complete` (431.9 s),
+  `completion-clump`
+  (6.2 s), `completion-validate` (24.6 s) and `completion-observed-view-check` (187.0 s) and published: 11
+  min 34.8 s wall, peak RSS 3,141,388 kB, load average 126 before and 63 after. Times: 14:27:56 to
+  14:39:31 UTC. The completion phase published the completed Store, `OGS-00025-completed` as its release
+  identity, in place of the Observed-Only Store; it takes no force (ADR 0037). Counts, Observed-Only to
+  completed: variants 1,129,442 to 2,293,885, associations 7,086,100 to 8,557,552, store_bytes 179,352,272
+  to 280,497,904; 1038 Analyses, identical. The Observed-View Check passed (max |dz|, |dse|, |deaf| all
+  0.0, no failures, 184.9 s; axis order preserved). Clumps: n_loci_5e8 404,
+  n_unclumped_5e8 461 (all absent from the hgdp1kgp-v2-EAS LD Store, none ambiguous); the p_5e_08 tier
+  holds 2,692 rows, 1,934 with a Clump Lead and 758 without (the imputed rows and the 461 absent markers).
+  validate reports no errors and 1,039 warnings: 1,038 EAF-orientation (one per Analysis, as before) and
+  the note that the Analyses were resolved with opengwasdb 0.1.0, both carried from the Observed-Only
+  record. The Validation Record is the one `register` wrote. Read without pysam: the envelope equals the
+  closed 0.3.0 Reference-Completed Ragged set (index.sqlite for `completion_quality`, regions.tsv, no
+  variant_offsets.npy); variant_count equals the record; 200 observed source SNV rows of each of three
+  Analyses match z (worst |dz| 0.00049); an imputed cell reads (GCST90203092 at 7:98425309:GTA:G (z 0.576,
+  se 0.333, eaf 0.938)); the Clumps read. The Observed-Only Store, its records and its Validation Record
+  are archived at /data/opengwasdb/stores/OGS-00025/replaced/20261126T143926Z/. The Release Status is
+  unchanged at validated.

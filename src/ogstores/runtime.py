@@ -62,15 +62,18 @@ OPENGWASDB_GIT_URL: str = engine.OPENGWASDB_GIT_URL
 #: this is the value the guard reports.
 REQUIRED_FORMAT_VERSION: str = "0.3.0"
 
-#: Every format Reference Completion may consume: `0.2.2` and `0.2.3`. A `0.2.2`
-#: source completes to `0.2.3`, because every completion records
-#: `n_missing_se_out_of_range` (opengwas/opengwasdb#338, ADR 0068). The engine's
-#: completion refuses a `0.2.1`, `0.2.0` or `0.1.0` source and says to rebuild
-#: it: completing one would spell the panel's indels sorted beside the Store's
-#: own deletions. The converter writes `0.2.0`, so converting does not make a
-#: parent completable; a parent below `0.2.2` is rebuilt with this engine
+#: Every format Reference Completion may consume: `0.2.2`, `0.2.3` and `0.3.0`.
+#: A `0.2.2` source completes to `0.2.3` or later, because every completion
+#: records `n_missing_se_out_of_range` (opengwas/opengwasdb#338, ADR 0068). A
+#: `0.3.0` source is one this engine's rebuild wrote, or one `opengwasdb
+#: rewrite-release` derived from a published release and `publish-rewrite`
+#: published (ADR 0043); the engine's completion reads both alike. It refuses a
+#: `0.2.1`, `0.2.0` or `0.1.0` source and says to rebuild it: completing one
+#: would spell the panel's indels sorted beside the Store's own deletions. The
+#: converter's `--convert-legacy` output is `0.3.0` and completes (#527); a
+#: parent below `0.2.2` that was not rewritten is rebuilt with this engine
 #: (docs/runtime.md).
-WRITABLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.2.2", "0.2.3"})
+WRITABLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.2.2", "0.2.3", "0.3.0"})
 
 #: Command the guard probes in addition to those a scheduled plan names, for the
 #: completion-parent format gate.
@@ -450,8 +453,8 @@ def verify_runtime_for_releases(
                 f"existing Store at {parent_store} is format_version={format_version!r}. The "
                 f"pinned engine completes only a {accepted} Store (an indel's reference "
                 "allele is spelt first from 0.2.2, opengwas/opengwasdb#381) and refuses an "
-                "older one. Rebuild the parent with this engine, then complete the rebuilt "
-                "release; converting does not help, because the converter writes 0.2.0. See "
+                "older one. Rebuild the parent with this engine, or rewrite it to 0.3.0 and "
+                "publish it with `publish-rewrite`, then complete that release. See "
                 "docs/runtime.md; upgrading the runtime does not convert, rebuild or "
                 "requalify an existing Store."
             )

@@ -17,7 +17,8 @@ generator:
     - Rscript resources/generators/lib/source-formats/gwas-ssf-ragged/generate.R --config=resources/generators/metabolome-plasma-2023/config-european.yaml --mode=emit
 notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue
   #31''s "run the whole thing" follow-on): single-ancestry selection (ancestry_group: European, matching
-  the candidates table''s own store_key partitioning) rather than the pilot''s mixed-ancestry-plus-AF-assignment
+  the candidates table''s own store_key partitioning) rather than the pilot''s
+  mixed-ancestry-plus-AF-assignment
   approach, since each store here is already known single-ancestry from the source label. ancestry_assignment
   stays enabled with the fixed QC panel (issue #28/#29/#30) as a source/AF mislabel QC check, not for
   splitting.
@@ -32,7 +33,8 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   (opengwasdb#102). No Reference-Completed sibling exists yet.
 
   Release Erratum (issue #133): assigned_ancestry was recorded as the free-text Source Ancestry Label
-  "European" while the membership table already recorded the super-population code "EUR"; normalised here. The quantitative Analyses also stored n_cases/n_controls as 0 where the counts
+  "European" while the membership table already recorded the super-population code "EUR"; normalised
+  here. The quantitative Analyses also stored n_cases/n_controls as 0 where the counts
   are not applicable; those cells are now empty (absence is distinct from zero). source_ancestry_label
   remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
 
@@ -109,7 +111,8 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   them were filled; the rest added only missing rows, 2,238,487,317 in all. The 299 Analyses
   with no significant region received a median of 7.15M imputed cells, as many as those with
   signals. The Store passed validate and the Observed-View Check, which checked placement only
-  against the engine''s own region rule and so could not see the fault. The owner found it on 2026-11-11 ("It''s a signals only store so
+  against the engine''s own region rule and so could not see the fault. The owner found it on
+  2026-11-11 ("It''s a signals only store so
   imputation should only be done at the signals themselves"). opengwas/opengwasdb#430,
   released in v0.9.0, completes each Ragged Analysis only inside its cis and significant
   regions, from the region table the Store now records at build (regions.tsv, declared in its
@@ -119,7 +122,7 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
 
   Rebuilt and re-completed (issue #224, 2026-11-11). On the owner''s approval, a forced
   `release OGS-00006` at abce1d94, opengwasdb 0.9.0 (ea81c4a), ran from 22:19 to 23:26 UTC,
-  elapsed 1 h 07 m, exit 0. The build phase rebuilt the Observed-Only Store from this
+  elapsed 1 h 7 min, exit 0. The build phase rebuilt the Observed-Only Store from this
   unchanged bundle in 20 minutes: the same 1,400 Analyses, 12,086,463 variants and 58,054,212
   associations, now carrying the bundle''s sidecars/sparse_regions.tsv as regions.tsv, declared
   in the manifest and stamped format 0.2.1, the lowest version a Store with that file uses.
@@ -160,4 +163,55 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   records/ and validation.yaml, as ADR 0037 keeps on an unforced replacement, so the change stays
   dated and evidenced.
 
-  '
+  2026-11-25: rebuilt and re-completed at format 0.3.0 (#524, epic #520). The owner approved
+  rebuilding the priority Stores at format 0.3.0 on 2026-11-25 (opengwas/opengwasdb-stores#498), and
+  ruled that the source bytes now on disk are authoritative for the 198 re-materialised files, whose
+  registry sizes and checksums were updated first (commit 4c1cdf88). This Store was then rebuilt by a
+  forced run on this host: `pixi run -e workflow release OGS-00006 --config force=1`, after
+  `release-dry`, from 4c1cdf88 with opengwasdb 0.20.0 (c8ebe4ca), from 15:32:02 to 17:02:25 UTC, exit
+  0, in 1 h 30 min wall (peak RSS 28,041,596 kB; load average 43.11 before and 62.80 after, with other
+  jobs on the host). Steps: build 1,434.9 s, top-hits 7.1 s, validate 74.6 s, complete 3,406.5 s,
+  completion-validate 92.5 s, Observed-View Check 325.7 s (build_elapsed_s 5,341.4; the 0.2.1 build
+  took 3,972.7 s). The Observed-Only build was published and registered, then completed and replaced
+  under the same id, so two archives were left: replaced/20261125T153213Z/ holds the 0.2.1 completed
+  Store this run replaced, and replaced/20261125T170209Z/ the intermediate Observed-Only 0.3.0 Store
+  (the one validation.yaml names). Counts against the 0.2.1 completed build: 1,400 Analyses
+  (unchanged), variants 12,357,678 to 12,058,872, associations 59,092,457 to 57,448,827. The
+  Observed-Only build holds 55,288,391 associations in 11,491,840 variants against 58,054,212 and
+  12,086,463 for the 0.2.1 one: the engine examined 58,054,430 rows and dropped 2,766,003 as
+  `indel_ssf_unharmonised` (opengwasdb ADR 0072, 0079; #514) and 36 as `duplicate_conflicting`; the
+  218 rows by which it examined more than 0.2.1 built are in 70 Analyses whose source files list one
+  key twice, 0.2.1 having built those rows out (checked against every one of the 70 files). Completion
+  read the same 3,627 significant_trans regions over 1,101 Analyses and the same 1,286 LD blocks; it
+  imputed 2,159,513 cells (1,038,186 at 0.2.1) and left 923 missing (59), over 567,032 new LD panel
+  variants (271,215). The imputed count is larger in indels only: on six Analyses compared, the SNV
+  imputed cells are identical in number and the indel ones about 2.5 to 3 times as many, because panel
+  indels are now placed reference-first (ADR 0079; as at OGS-00001, #514). Observed rows lost against
+  0.2.1 are all indels; shared observed z and EAF are identical and SE differs by up to 1.3% (SE is
+  now coded from the source SE coefficients, ADR 0068); an imputed SNV z can move by up to 0.18 (I did
+  not trace it; the LD blocks now hold fewer observed indel neighbours). The Observed-View Check
+  passed, with 42,150,360 observed cells compared, no mismatch in z, SE or EAF and no failing
+  Analysis. validate and completion-validate report no errors; the warnings are the same 1,397
+  EAF-orientation notes as before (no resolver note). The Validation Record is the one `register`
+  wrote at completion. Both archives are kept because the run was forced (#309); deleting them is the
+  owner''s call. The Store is reference_completed and the Release Status is unchanged at validated.
+
+
+
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with `post.ld_stores` (EUR: the
+  `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
+
+  2026-11-26: Clumps added in place (#532, epic #520). The owner approved the run on 2026-11-26
+  (command, host, budget and publication effect). An unforced `pixi run -e workflow release OGS-00006`
+  (ADR 0044, engine 0.23.0 (e97f07b5)) staged a reflink copy and ran `opengwasdb clump --ld-store
+  EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (21.4 s) and validate
+  (79.1 s), from 13:02:30 to 13:04:21 UTC (1 min 51 s wall, peak RSS 3,075,508 kB; 1-minute load
+  average 53 at the start, 68 at the end (mean 66)). The new record is `passed_with_warnings` for the
+  1,397 EAF-orientation warnings it already had, no others (a plain rebuild with no `rewrite` block,
+  so the in-place judge applies no deviation rule and adds none). has_clumps is true; n_loci_5e8 4,389
+  and n_unclumped_5e8 63,690 (all absent from the LD Store, none ambiguous); the p_5e_08 tier holds
+  382,194 rows, 294,016 with a Clump Lead; store_bytes 1,682,988,626 to 1,683,609,576. Read without
+  pysam, Ragged: no Rho, the Clumps read, and z, se and eaf of three Analyses equal the archived
+  Store''s. The previous Store, records and Validation Record are archived at
+  replaced/20261126T130235Z.'

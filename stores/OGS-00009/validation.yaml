@@ -1,28 +1,56 @@
-status: passed
-validated_at: '2026-10-23T19:04:59.796463Z'
+status: passed_with_warnings
+validated_at: '2026-11-26T15:40:13.508438Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+  version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
 build_environment:
-  opengwasdb_version: 0.3.0
-  opengwasdb_commit: d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+  opengwasdb_version: 0.23.0
+  opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
   python_version: 3.12.15
-  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+  platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
+  engines:
+  - opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
+    opengwasdb_version: 0.23.0
+    steps:
+    - rewrite-release
+    - completion-rho
+    - completion-clump
+    - completion-overview
+    - completion-validate
 observed:
-  format_version: 0.2.0
+  format_version: 0.3.0
   n_analyses: 2514
   n_variants: 11191070
   n_associations: null
-  store_bytes: 61882085184
+  association_coverage: null
+  reference_assembly: null
+  store_bytes: 61462766669
   has_hm3: true
-  has_rho: null
+  has_rho: true
+  has_clumps: true
+  n_loci_5e8: 76821
+  n_unclumped_5e8: 732086
   n_top_hits: null
-  build_elapsed_s: 159976.285
-  validate_status: passed
+  build_elapsed_s: 168358.604
+  validate_status: passed_with_warnings
   completion_state: reference_completed
 checks:
-  store: passed
-warnings: []
+  store: passed_with_warnings
+warnings:
+- '1271 not judged (no source ALID): variants.tsv.gz has non-primary-contig variants
+  with no source_alid, which cannot be told from a lift''s [a deviation recorded by
+  ogdb rewrite-release --convert-legacy, which converted this release from format_version
+  0.2.0 (release OGS-00009-completed); a rebuild from source fixes it]'
+- 'manifest.json records a liftover but none of the 11191070 rows of variants.tsv.gz
+  carries a source_alid: a build or Reference Completion dropped the lift''s provenance
+  (#449) -- rebuild the release from source [a deviation recorded by ogdb rewrite-release
+  --convert-legacy, which converted this release from format_version 0.2.0 (release
+  OGS-00009-completed); a rebuild from source fixes it]'
+- 'data.zarr/se: 1680419 of 1680419 se exceptions (100.00%) are exactly what a float16
+  plane stores, against 0.01% by chance: the plane was rounded to float16 before its
+  encoding plan was chosen (issue #355); rebuild the release [a deviation recorded
+  by ogdb rewrite-release --convert-legacy, which converted this release from format_version
+  0.2.0 (release OGS-00009-completed); a rebuild from source fixes it]'
 errors: []
 acceptance:
   recorded_at: '2026-10-21T22:20:44Z'
@@ -64,5 +92,40 @@ acceptance:
     no AF-assigned ancestry records were supplied; checks.ancestry=not_run (run `opengwasdb
     assign-ancestry` before acceptance/build, #222)'
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00009/replaced/20261023T190459Z
-  replaced_at: '2026-10-23T19:04:59.796463Z'
+  archive: /data/opengwasdb/stores/OGS-00009/replaced/20261126T150853Z
+  replaced_at: '2026-11-26T15:40:13.508438Z'
+rewrite:
+  record: /data/opengwasdb/stores/OGS-00009/records/rewrite-release.json
+  staged: /data/opengwasdb/stores/OGS-00009/store.opengwasdb.0.3.0
+  command:
+  - /data/opengwasdb/work/orchestrate/opengwasdb-stores-520/worktrees/pin504/.pixi/envs/workflow/bin/opengwasdb
+  - rewrite-release
+  - /data/opengwasdb/stores/OGS-00009/store.opengwasdb
+  - /data/opengwasdb/stores/OGS-00009/store.opengwasdb.0.3.0
+  - --convert-legacy
+  - --lifted
+  - --n-workers
+  - '16'
+  convert_legacy: true
+  release_id: b607e5d9-cd41-46d6-8d8e-92abce072f4a
+  format_version: 0.3.0
+  source_release_id: OGS-00009-completed
+  source_format_version: 0.2.0
+  deviations:
+  - side_tables.se_exceptions_rounded
+  - variant_table.lifted_contig
+  - variant_table.source_alid
+  carried_warnings: []
+post_additions:
+- added_at: '2026-11-26T15:40:13.508438Z'
+  steps:
+  - completion-rho
+  - completion-clump
+  - completion-overview
+  records:
+  - /data/opengwasdb/stores/OGS-00009/records/completion-rho.json
+  - /data/opengwasdb/stores/OGS-00009/records/completion-clump.json
+  - /data/opengwasdb/stores/OGS-00009/records/completion-overview.json
+  - /data/opengwasdb/stores/OGS-00009/records/completion-validate.json
+  release_id: b607e5d9-cd41-46d6-8d8e-92abce072f4a
+  replaced_archive: /data/opengwasdb/stores/OGS-00009/replaced/20261126T150853Z
