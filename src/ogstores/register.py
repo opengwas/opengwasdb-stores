@@ -39,7 +39,6 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023.
 from __future__ import annotations
 
 import copy
-import datetime
 import json
 import os
 import platform
@@ -49,7 +48,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 import yaml
 
@@ -95,6 +94,11 @@ OBSERVED_FIELDS: tuple[str, ...] = (
     # the publishing phase that ran and succeeded, never from the Store (#502).
     "has_hm3",
     "has_rho",
+    # Whether the phase's `clump` step ran and succeeded (null when the recipe plans
+    # none), and the counts that step printed: null unless it ran (#526).
+    "has_clumps",
+    "n_loci_5e8",
+    "n_unclumped_5e8",
     # Top-hit counts keyed by threshold: null when `post.top_hits` is false, and
     # null until opengwas/opengwasdb#488 reports them, since no step prints them.
     "n_top_hits",
@@ -568,7 +572,7 @@ def acceptance_evidence(
     return copy.deepcopy(dict(carried)) if isinstance(carried, Mapping) else None
 
 
-def _validate_step(planned_steps: list[Step]) -> str:
+def phase_validate_step(planned_steps: list[Step]) -> str:
     """The name of the validate step whose verdict a phase's Validation Record carries."""
     if planned_steps and planned_steps[0].phase == COMPLETION_PHASE:
         return completion_step_name("validate")
@@ -614,26 +618,37 @@ def _reported_rsid_conflicts(record: Mapping[str, Any]) -> dict[str, Any] | None
     return {key: reported.get(key) for key in RSID_CONFLICT_FIELDS}
 
 
-def _reported_association_count(
-    payload: dict[str, Any], step_name: str, where: str
+def _reported_count(
+    payload: dict[str, Any], key: str, step_name: str, where: str, *, nullable: bool = False
 ) -> int | None:
-    """The step's reported `n_associations`, or None when the step printed no such key.
+    """The step's reported count `key`, or None when the step printed no such key.
 
     A present value must be a non-negative integer that is not a bool: a string,
     float, list, negative or boolean is malformed, and recording it as None
     would present "opengwasdb reported something else" as "opengwasdb reported
-    nothing" (#322).
+    nothing" (#322). A JSON null is malformed too, unless the caller says the
+    engine prints it for a count it did not compute (`nullable`): `clump` does
+    when it clumped nothing (#526).
     """
-    if "n_associations" not in payload:
+    if key not in payload:
         return None
-    value = payload["n_associations"]
+    value = payload[key]
+    if value is None and nullable:
+        return None
     if type(value) is not int or value < 0:
         raise ObservedMeasurementError(
-            f"The {step_name} step's record {where} carries n_associations={value!r} in its "
+            f"The {step_name} step's record {where} carries {key}={value!r} in its "
             "stdout JSON; opengwasdb reports it as a non-negative integer, so register "
             "refuses rather than recording null for a value that was present (#322)"
         )
     return value
+
+
+def _reported_association_count(
+    payload: dict[str, Any], step_name: str, where: str
+) -> int | None:
+    """The step's reported `n_associations`, or None when the step printed no such key."""
+    return _reported_count(payload, "n_associations", step_name, where)
 
 
 def _reported_observed_text(
@@ -687,9 +702,26 @@ def require_declared_association_coverage(
 # Variant Subset `audit_indexed_subsets.DEFAULT_SUBSET_NAME`.
 RHO_STEP: str = "rho"
 
+# The post step `has_clumps` reports (#526), and the counts its JSON prints.
+CLUMP_STEP: str = "clump"
+CLUMP_COUNT_FIELDS: tuple[str, ...] = ("n_loci_5e8", "n_unclumped_5e8")
+
 # The `observed` keys #502 added, which `ogstores.backfill_observed` writes into
 # records registered before them.
 STORE_FACT_FIELDS: tuple[str, ...] = ("store_bytes", "has_hm3", "has_rho", "n_top_hits")
+
+
+def _phase_step(
+    planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]], name: str
+) -> tuple[str, Mapping[str, Any] | None] | None:
+    """The phase's planned step `name` (or its completion-phase counterpart) and its record.
+
+    None when the phase plans no such step; the record is None when it plans one and has none.
+    """
+    planned = [step.name for step in planned_steps if step.name in (name, completion_step_name(name))]
+    if not planned:
+        return None
+    return planned[0], step_records.get(planned[0])
 
 
 def _step_built(
@@ -704,10 +736,10 @@ def _step_built(
     `unplanned` when the phase plans no such step; None when it plans one and
     no record says how it ended.
     """
-    planned = [step.name for step in planned_steps if step.name in (name, completion_step_name(name))]
-    if not planned:
+    found = _phase_step(planned_steps, step_records, name)
+    if found is None:
         return unplanned
-    record = step_records.get(planned[0])
+    record = found[1]
     if record is None:
         return None
     return record.get("success") is True and record.get("exit_code") == 0
@@ -743,6 +775,30 @@ def store_facts(
     }
 
 
+def clump_facts(
+    planned_steps: list[Step],
+    step_records: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """`has_clumps`, `n_loci_5e8` and `n_unclumped_5e8` of the phase: whether `clump` ran, and the counts it printed (#526).
+
+    A recipe that plans no `clump` step says nothing about Clumps built by hand, so
+    `has_clumps` is then null, never false (as `has_rho`). The counts are the engine's
+    own, read from the step's stdout JSON and never computed here: a step that printed
+    no such key, or null (it clumped nothing), records null; a present value that is not a non-negative integer is
+    refused, since null would read as "reported nothing" (#322).
+    """
+    built = _step_built(planned_steps, step_records, CLUMP_STEP, unplanned=None)
+    facts: dict[str, Any] = {"has_clumps": built, "n_loci_5e8": None, "n_unclumped_5e8": None}
+    if built is not True:
+        return facts
+    step_name, record = _phase_step(planned_steps, step_records, CLUMP_STEP)  # type: ignore[misc]
+    where = record.get("record_path") or f"records/{step_name}.json"
+    payload = _extract_json_from_text(record.get("stdout", "")) or {}
+    for key in CLUMP_COUNT_FIELDS:
+        facts[key] = _reported_count(payload, key, step_name, where, nullable=True)
+    return facts
+
+
 def read_format_version(store_dir: Path) -> str:
     """The `format_version` of the Store at `store_dir`, read by `ogstores.store_info.store_info` (#512).
 
@@ -758,6 +814,23 @@ def read_format_version(store_dir: Path) -> str:
     if not isinstance(version, str) or not version:
         raise ValueError(f"`opengwasdb info` reported no format_version for {store_dir}")
     return version
+
+
+def read_completion_state(store_dir: Path) -> str | None:
+    """The `completion_state` `opengwasdb info` reports for the Store at `store_dir`, or None when it reports none.
+
+    The one reader is `store_info` (ADR 0023). A Store rewritten to 0.3.0 is
+    measured here because a replaced 0.2.x record may predate #307 and carry
+    none (#525); an ordinary build reads it from the plan
+    (`published_completion_state`). Raises ValueError as `read_format_version`
+    does when `info` cannot be read.
+    """
+    try:
+        info = store_info(store_dir)
+    except OSError as exc:
+        raise ValueError(f"`opengwasdb info` could not run: {exc}") from exc
+    state = info.get("completion_state")
+    return state if isinstance(state, str) and state else None
 
 
 def harvest_observed_measurements(
@@ -802,7 +875,7 @@ def harvest_observed_measurements(
     association_coverage: str | None = None
     reference_assembly: str | None = None
     rsid_conflicts: dict[str, Any] | None = None
-    validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
+    validate_status, _, _ = validate_verdict(step_records.get(phase_validate_step(planned_steps)))
 
     # 1. Harvest from build or complete record
     producing_step = next((s.name for s in planned_steps if s.name in ("build", "complete")), None)
@@ -886,6 +959,7 @@ def harvest_observed_measurements(
         "association_coverage": association_coverage,
         "reference_assembly": reference_assembly,
         **store_facts(planned_steps, step_records, store_dir),
+        **clump_facts(planned_steps, step_records),
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
         "completion_state": published_completion_state(bundle_obj, phase),
@@ -930,7 +1004,7 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
         f.flush()
         os.fsync(f.fileno())
     os.replace(temp_path, dest_path)
-    run._fsync_dir(dest_path.parent)
+    run.fsync_dir(dest_path.parent)
 
 
 # The durable steps of a publication, in order: a crash between any two leaves
@@ -973,7 +1047,7 @@ def _dump_yaml(data: dict[str, Any]) -> str:
     return yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
 
 
-def _write_text_atomically(text: str, dest_path: Path) -> None:
+def write_text_atomically(text: str, dest_path: Path) -> None:
     """Atomically write text to dest_path using a temporary file and os.replace.
 
     A file that already holds exactly `text` is left alone. Its mtime is
@@ -994,13 +1068,13 @@ def _write_text_atomically(text: str, dest_path: Path) -> None:
         f.flush()
         os.fsync(f.fileno())
     os.replace(temp_path, dest_path)
-    run._fsync_dir(dest_path.parent)
+    run.fsync_dir(dest_path.parent)
 
 
 def _record_already_written(record_p: Path, record_data: dict[str, Any]) -> bool:
     """Whether `record_p` already holds exactly `record_data`.
 
-    The same argument as `_write_text_atomically`: an identical rewrite would
+    The same argument as `write_text_atomically`: an identical rewrite would
     only bump the record's mtime, and a step record's mtime is what tells
     Snakemake whether the job that consumed it is still up to date (#303).
     """
@@ -1026,7 +1100,7 @@ def _delete_tree(path: Path) -> None:
     path.rmdir()
 
 
-def _load_marker(store_id: str, root: Path) -> dict[str, Any] | None:
+def load_publication_marker(store_id: str, root: Path) -> dict[str, Any] | None:
     marker_p = paths.publication_marker(store_id, root=root)
     if not _exists(marker_p):
         return None
@@ -1087,7 +1161,7 @@ def finish_build_phase_publication(store_id: str, root: Path | str) -> bool:
     function's to finish and is refused. Returns whether one was finished.
     """
     resolved_root = Path(root)
-    marker = _load_marker(store_id, resolved_root)
+    marker = load_publication_marker(store_id, resolved_root)
     if marker is None:
         return False
     if publication_register_step(marker) != REGISTER_STEPS[BUILD_PHASE]:
@@ -1154,7 +1228,7 @@ def remove_publication_marker(store_id: str, root: Path | str) -> None:
     """Remove a finished publication's marker: always the transaction's last step (#195)."""
     marker_p = paths.publication_marker(store_id, root=root)
     marker_p.unlink()
-    run._fsync_dir(marker_p.parent)
+    run.fsync_dir(marker_p.parent)
     run.fault_boundary("marker-removed")
 
 
@@ -1195,7 +1269,7 @@ def complete_publication(
     None when nothing was pending.
     """
     resolved_root = Path(root)
-    marker = _load_marker(store_id, resolved_root)
+    marker = load_publication_marker(store_id, resolved_root)
     if marker is None:
         return None
     register_step = publication_register_step(marker)
@@ -1217,7 +1291,7 @@ def complete_publication(
             if not _exists(partial_p):
                 raise stuck("neither the Store nor the staged Store exists")
             partial_p.rename(store_p)
-            run._fsync_dir(store_dir_p)
+            run.fsync_dir(store_dir_p)
             run.fault_boundary("store-published")
         elif _exists(partial_p):
             raise stuck("a Store and a staged Store both exist, but nothing is being replaced")
@@ -1241,23 +1315,23 @@ def complete_publication(
                 if not (_exists(store_p) and _exists(partial_p)):
                     raise stuck("the Store to replace or its replacement is missing")
                 store_p.rename(backup_p)
-                run._fsync_dir(store_dir_p)
+                run.fsync_dir(store_dir_p)
                 run.fault_boundary("store-set-aside")
             if not _exists(store_p):
                 if not _exists(partial_p):
                     raise stuck(f"the old Store is at {backup_p} but the staged Store is missing")
                 partial_p.rename(store_p)
-                run._fsync_dir(store_dir_p)
+                run.fsync_dir(store_dir_p)
                 run.fault_boundary("store-published")
             archive.mkdir(parents=True, exist_ok=True)
             backup_p.rename(archived_store)
-            run._fsync_dir(archive)
-            run._fsync_dir(store_dir_p)
+            run.fsync_dir(archive)
+            run.fsync_dir(store_dir_p)
             if not deleting:
                 run.fault_boundary("old-store-archived")
         if deleting and _exists(archived_store):
             _delete_tree(archived_store)
-            run._fsync_dir(archive)
+            run.fsync_dir(archive)
             run.fault_boundary("old-store-deleted")
 
         snapshot = Path(marker["snapshot"]) if marker["snapshot"] else None
@@ -1276,24 +1350,24 @@ def complete_publication(
                 if not _exists(archived_record):
                     if not _exists(record_p):
                         raise stuck(f"{what}, {record_p}, is missing")
-                    _write_text_atomically(record_p.read_text(encoding="utf-8"), archived_record)
+                    write_text_atomically(record_p.read_text(encoding="utf-8"), archived_record)
                     run.fault_boundary("old-records-archived")
         if marker["previous_validation"] is not None and not _exists(archive / "validation.yaml"):
-            _write_text_atomically(marker["previous_validation"], archive / "validation.yaml")
+            write_text_atomically(marker["previous_validation"], archive / "validation.yaml")
             run.fault_boundary("old-record-archived")
 
-    _write_text_atomically(marker["validation_yaml"], Path(marker["bundle_validation"]))
+    write_text_atomically(marker["validation_yaml"], Path(marker["bundle_validation"]))
     run.fault_boundary("record-written")
     register_record_p = paths.record_path(store_id, register_step, root=resolved_root)
     if not _record_already_written(register_record_p, marker["register_record"]):
-        run._write_record_atomically(marker["register_record"], register_record_p)
+        run.write_record_atomically(marker["register_record"], register_record_p)
     run.fault_boundary("register-record-written")
     if finalize:
         remove_publication_marker(store_id, resolved_root)
     return marker
 
 
-def _unused_stamp(store_id: str, root: Path) -> str:
+def unused_archive_stamp(store_id: str, root: Path) -> str:
     """This second's UTC stamp, or it suffixed `-2`, `-3`, ... when that archive exists.
 
     A forced run of a release that completes its own Store replaces it twice,
@@ -1308,7 +1382,7 @@ def _unused_stamp(store_id: str, root: Path) -> str:
     return candidate
 
 
-def _recorded_engine(record: Mapping[str, Any]) -> engine.EngineIdentity:
+def recorded_engine(record: Mapping[str, Any]) -> engine.EngineIdentity:
     """The engine one step record names, `unavailable` for whatever it does not (#253)."""
     return engine.EngineIdentity(
         executable=str(record.get("opengwasdb_executable") or engine.UNAVAILABLE),
@@ -1331,7 +1405,7 @@ def phase_engine(planned_steps: list[Step], step_records: Mapping[str, Mapping[s
     for name in producing + sorted(step_records):
         rec = step_records.get(name)
         if rec is not None and engine.is_exact_commit_hash(rec.get("opengwasdb_rev")):
-            return _recorded_engine(rec)
+            return recorded_engine(rec)
     return engine.EngineIdentity(engine.UNAVAILABLE, engine.UNAVAILABLE, engine.UNAVAILABLE)
 
 
@@ -1345,22 +1419,168 @@ def phase_engines(
     distinct commit and version a step record names is one entry, so a record
     that names no engine is listed as `unavailable` rather than left out.
     """
+    return engines_of(
+        (step.name, step_records[step.name]) for step in planned_steps if step.name in step_records
+    )
+
+
+def engines_of(named_records: Iterable[tuple[str, Mapping[str, Any]]]) -> list[dict[str, Any]]:
+    """`build_environment.engines`: each distinct engine the records name, with its steps, in order (#410).
+
+    A record that names no engine is listed as `unavailable` rather than left
+    out. `phase_engines` gives a phase's records in plan order; a rewrite's
+    publication gives its two (#533).
+    """
     engines: dict[tuple[str, str], list[str]] = {}
-    for step in planned_steps:
-        rec = step_records.get(step.name)
-        if rec is None:
-            continue
-        ran = _recorded_engine(rec)
-        engines.setdefault((ran.commit, ran.version), []).append(step.name)
+    for name, rec in named_records:
+        ran = recorded_engine(rec)
+        engines.setdefault((ran.commit, ran.version), []).append(name)
     return [
         {"opengwasdb_commit": commit, "opengwasdb_version": version, "steps": steps}
         for (commit, version), steps in engines.items()
     ]
 
 
-def _validator_version(ran: engine.EngineIdentity) -> str:
+def validator_version(ran: engine.EngineIdentity) -> str:
     """`opengwasdb@<commit>`, or `opengwasdb v<version>` when no commit is provable."""
     return f"opengwasdb@{ran.commit}" if ran.commit != run.UNAVAILABLE else f"opengwasdb v{ran.version}"
+
+
+def build_validation_record(
+    *,
+    status: str,
+    checks_store: str,
+    validated_at: str,
+    validator: engine.EngineIdentity,
+    wrote_store: engine.EngineIdentity,
+    engines: list[dict[str, Any]],
+    observed: dict[str, Any],
+    warnings: list[str],
+    errors: list[str],
+    acceptance: Mapping[str, Any] | None = None,
+    replaced: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """A Validation Record in the shape `register` writes (`docs/release-metadata-schema.md`).
+
+    `validator` ran `validate` (#410) and `wrote_store` wrote the Store (#253).
+    Shared by `register_release` and `ogstores.publish_rewrite` (#533), which add
+    their own blocks after these.
+    """
+    record: dict[str, Any] = {
+        "status": status,
+        "validated_at": validated_at,
+        "validator": {"name": VALIDATOR_NAME, "version": validator_version(validator)},
+        "build_environment": {
+            "opengwasdb_version": wrote_store.version,
+            "opengwasdb_commit": wrote_store.commit,
+            "python_version": sys.version.split()[0],
+            "platform": platform.platform(),
+            "engines": engines,
+        },
+        "observed": observed,
+        "checks": {"store": checks_store},
+        "warnings": warnings,
+        "errors": errors,
+    }
+    if acceptance is not None:
+        record["acceptance"] = dict(acceptance)
+    if replaced is not None:
+        record["replaced"] = dict(replaced)
+    return record
+
+
+def build_register_record(
+    *,
+    step: str,
+    store_id: str,
+    at: str,
+    inputs: list[str],
+    outputs: list[str],
+    wrote_store: engine.EngineIdentity,
+    record_path: Path,
+    published_store: str | None,
+    replaced_archive: str | None,
+) -> dict[str, Any]:
+    """A phase's register record (`records/register.json` or `completion-register.json`).
+
+    The step-record shape with no command of its own: `inputs` are the records
+    it registered, and `replaced_archive` where the release it replaced went (#195).
+    """
+    return {
+        "step": step,
+        "store_id": store_id,
+        "exit_code": 0,
+        "success": True,
+        "start_time": at,
+        "end_time": at,
+        "elapsed_seconds": 0.0,
+        "argv": [],
+        "planned_argv": [],
+        "inputs": inputs,
+        "outputs": outputs,
+        "opengwasdb_rev": wrote_store.commit,
+        "opengwasdb_version": wrote_store.version,
+        "opengwasdb_executable": wrote_store.executable,
+        "stdout": "",
+        "stderr": "",
+        "record_path": str(record_path),
+        "published_store": published_store,
+        "replaced_archive": replaced_archive,
+    }
+
+
+def build_publication_marker(
+    *,
+    store_id: str,
+    archive: Path | None,
+    snapshot: Path | None,
+    replaced_store: str | None,
+    validation_yaml: Path,
+    previous_validation: str | None,
+    validation_record: Mapping[str, Any],
+    register_record: Mapping[str, Any],
+    written_at: str,
+) -> dict[str, Any]:
+    """`publication.json`: the whole outcome `complete_publication` carries out (#195)."""
+    return {
+        "store_id": store_id,
+        "archive": str(archive) if archive else None,
+        "snapshot": str(snapshot) if snapshot else None,
+        "replaced_store": replaced_store,
+        "bundle_validation": str(validation_yaml.resolve()),
+        "previous_validation": previous_validation,
+        "validation_yaml": _dump_yaml(dict(validation_record)),
+        "register_record": dict(register_record),
+        "written_at": written_at,
+    }
+
+
+def begin_publication(marker: Mapping[str, Any], root: Path | str) -> None:
+    """Commit to a publication: write its marker, between the transaction's first two boundaries.
+
+    From here a crash is recovered by `complete_publication`; before it, the
+    published release is as it was (#195).
+    """
+    run.fault_boundary("publication-started")
+    run.write_record_atomically(dict(marker), paths.publication_marker(str(marker["store_id"]), root=root))
+    run.fault_boundary("marker-written")
+
+
+def _verified_steps(store_id: str, phase: str, root: Path) -> frozenset[str] | None:
+    """The steps `phase`'s register record verified: the stems of its `inputs`.
+
+    None when the record is missing or unreadable or lists no inputs: that
+    phase cannot say which steps it verified, so none of its planned steps
+    may be skipped (every one is required).
+    """
+    try:
+        record = run.read_record(paths.record_path(store_id, REGISTER_STEPS[phase], root=root))
+    except ValueError:
+        return None
+    inputs = record.get("inputs") if isinstance(record, Mapping) else None
+    if not isinstance(inputs, list) or not inputs:
+        return None
+    return frozenset(Path(str(item)).stem for item in inputs)
 
 
 def register_release(
@@ -1436,8 +1656,16 @@ def register_release(
     step_records: dict[str, dict[str, Any]] = {}
     any_resumed = False
 
+    def read(step: Step) -> dict[str, Any] | None:
+        """The step's record; None only when there is none. An unreadable one is refused, never read as missing."""
+        run.validate_step_name(step.name)
+        try:
+            return run.read_record(paths.record_path(store_id, step.name, root=resolved_root))
+        except ValueError as exc:
+            raise RegisterError(f"Cannot register release {store_id}: {exc}") from exc
+
     def required_record(step: Step) -> dict[str, Any]:
-        rec = run.load_record(store_id, step.name, root=resolved_root)
+        rec = read(step)
         if rec is None:
             rec_p = paths.record_path(store_id, step.name, root=resolved_root)
             raise MissingRecordError(
@@ -1447,10 +1675,23 @@ def register_release(
         return rec
 
     # The steps of the phases before this one, which their own register
-    # verified; the release's elapsed total counts them (ADR 0037).
-    earlier_records = {
-        step.name: required_record(step) for step in planned[: planned.index(planned_steps[0])]
-    }
+    # verified; the release's elapsed total counts them (ADR 0037). A step the
+    # current plan has there, that has no record and that the earlier register
+    # did not list among its inputs, was added to the recipe after that phase
+    # published (ADR 0044, a `post.*` step): it is skipped, not required (#532).
+    earlier_records: dict[str, dict[str, Any]] = {}
+    verified: dict[str, frozenset[str] | None] = {}
+    for step in planned[: planned.index(planned_steps[0])]:
+        if step.phase not in verified:
+            verified[step.phase] = _verified_steps(store_id, step.phase, resolved_root)
+        said = verified[step.phase]
+        if (
+            said is not None
+            and step.name not in said
+            and read(step) is None
+        ):
+            continue
+        earlier_records[step.name] = required_record(step)
 
     # 1. Load and verify each planned step's record and check argv drift
     for step in planned_steps:
@@ -1473,7 +1714,7 @@ def register_release(
         )
 
     # 2. This run's verdict and findings, then its observed measurements
-    validate_step = _validate_step(planned_steps)
+    validate_step = phase_validate_step(planned_steps)
     val_status, val_warnings, val_errors = validate_verdict(step_records.get(validate_step))
     acceptance = acceptance_evidence(b.validation, commit=acceptance_commit)
     # The Store this run publishes: the staged one, which publication renames
@@ -1494,47 +1735,19 @@ def register_release(
     )
 
     # 3. Assemble validation.yaml dictionary
-    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    now_iso = run.utc_timestamp()
 
     ran = phase_engine(planned_steps, step_records)
-    ogdb_exe, ogdb_rev, ogdb_ver = ran.executable, ran.commit, ran.version
     # The validator is the engine that ran `validate`, which a phase may have
     # re-run under a newer engine than wrote its Store (#410).
     validate_record = step_records.get(validate_step)
-    validator = _recorded_engine(validate_record) if validate_record is not None else ran
+    validator = recorded_engine(validate_record) if validate_record is not None else ran
     store_status = val_status  # `checks.store` is validate's own verdict
     engine_warning = resolver_mismatch(acceptance, ran)
     if engine_warning is not None:
         val_warnings = [*val_warnings, engine_warning]
         if val_status == "passed":
             val_status = "passed_with_warnings"
-
-    # Only this run's findings. The bundle's previous validation.yaml is
-    # replaced, never merged: its checks, warnings, errors and reports describe
-    # another run, and republishing them under this run's validated_at is the
-    # wrong answer that looks right (#195). Phase B acceptance evidence survives
-    # only in its own labelled `acceptance` block, added below.
-    validation_data: dict[str, Any] = {
-        "status": val_status,
-        "validated_at": now_iso,
-        "validator": {
-            "name": VALIDATOR_NAME,
-            "version": _validator_version(validator),
-        },
-        "build_environment": {
-            "opengwasdb_version": ogdb_ver,
-            "opengwasdb_commit": ogdb_rev,
-            "python_version": sys.version.split()[0],
-            "platform": platform.platform(),
-            "engines": phase_engines(planned_steps, step_records),
-        },
-        "observed": observed,
-        "checks": {"store": store_status},
-        "warnings": val_warnings,
-        "errors": val_errors,
-    }
-    if acceptance is not None:
-        validation_data["acceptance"] = acceptance
 
     # 4. Publication. Staging a Store is one transaction (#195): once everything
     # is verified, publication.json records the whole outcome, the new and old
@@ -1553,6 +1766,7 @@ def register_release(
     archive: Path | None = None
     snapshot: Path | None = None
     replaced_store: str | None = None
+    replaced: dict[str, Any] | None = None
     if replacing:
         # The completion phase deletes the Store it replaces: the completed
         # Store holds everything it held (ADR 0037, Decision 3). A forced run
@@ -1571,8 +1785,8 @@ def register_release(
             raise RegisterError(
                 f"Cannot replace {store_id}: the Store it completes has no register record at {replaced_register}"
             )
-        archive = paths.replaced_dir(store_id, _unused_stamp(store_id, resolved_root), root=resolved_root)
-        validation_data["replaced"] = {"archive": str(archive), "replaced_at": now_iso}
+        archive = paths.replaced_dir(store_id, unused_archive_stamp(store_id, resolved_root), root=resolved_root)
+        replaced = {"archive": str(archive), "replaced_at": now_iso}
     elif replacing:
         # Replacing archives the old release under replaced/<stamp>/, with the
         # stamp of the forced run's records snapshot, so the two name each other.
@@ -1587,35 +1801,42 @@ def register_release(
         archive = paths.replaced_dir(store_id, stamp, root=resolved_root)
         if _exists(archive / target_p.name):
             raise FileExistsError(f"Cannot replace {store_id}: {archive / target_p.name} already exists")
-        validation_data["replaced"] = {"archive": str(archive), "replaced_at": now_iso}
+        replaced = {"archive": str(archive), "replaced_at": now_iso}
 
     if staged or (publish and target_p.is_dir()):
         published_p_str: str | None = str(target_p)
     else:
         published_p_str = None
 
-    input_record_paths = [str(paths.record_path(store_id, s.name, root=resolved_root)) for s in planned_steps]
-    register_result = {
-        "step": register_step,
-        "store_id": store_id,
-        "exit_code": 0,
-        "success": True,
-        "start_time": now_iso,
-        "end_time": now_iso,
-        "elapsed_seconds": 0.0,
-        "argv": [],
-        "planned_argv": [],
-        "inputs": input_record_paths,
-        "outputs": [str(val_yaml_path)],
-        "opengwasdb_rev": ogdb_rev,
-        "opengwasdb_version": ogdb_ver,
-        "opengwasdb_executable": ogdb_exe,
-        "stdout": "",
-        "stderr": "",
-        "record_path": str(reg_rec_p),
-        "published_store": published_p_str,
-        "replaced_archive": str(archive) if archive else None,
-    }
+    # Only this run's findings. The bundle's previous validation.yaml is
+    # replaced, never merged: its checks, warnings, errors and reports describe
+    # another run, and republishing them under this run's validated_at is the
+    # wrong answer that looks right (#195). Phase B acceptance evidence survives
+    # only in its own labelled `acceptance` block.
+    validation_data = build_validation_record(
+        status=val_status,
+        checks_store=store_status,
+        validated_at=now_iso,
+        validator=validator,
+        wrote_store=ran,
+        engines=phase_engines(planned_steps, step_records),
+        observed=observed,
+        warnings=val_warnings,
+        errors=val_errors,
+        acceptance=acceptance,
+        replaced=replaced,
+    )
+    register_result = build_register_record(
+        step=register_step,
+        store_id=store_id,
+        at=now_iso,
+        inputs=[str(paths.record_path(store_id, s.name, root=resolved_root)) for s in planned_steps],
+        outputs=[str(val_yaml_path)],
+        wrote_store=ran,
+        record_path=reg_rec_p,
+        published_store=published_p_str,
+        replaced_archive=str(archive) if archive else None,
+    )
     if format_version_unread:
         # `info` could not name the Store's format, so `observed.format_version`
         # is null; the reason is kept here (#512).
@@ -1628,28 +1849,26 @@ def register_release(
             raise RegisterError(
                 f"Cannot publish {store_id}: missing successful {validate_step!r} record in records/."
             )
-        run.fault_boundary("publication-started")
-        marker = {
-            "store_id": store_id,
-            "archive": str(archive) if archive else None,
-            "snapshot": str(snapshot) if snapshot else None,
-            "replaced_store": replaced_store,
-            "bundle_validation": str(val_yaml_path.resolve()),
-            "previous_validation": (
+        marker = build_publication_marker(
+            store_id=store_id,
+            archive=archive,
+            snapshot=snapshot,
+            replaced_store=replaced_store,
+            validation_yaml=val_yaml_path,
+            previous_validation=(
                 val_yaml_path.read_text(encoding="utf-8") if replacing and val_yaml_path.is_file() else None
             ),
-            "validation_yaml": _dump_yaml(validation_data),
-            "register_record": register_result,
-            "written_at": now_iso,
-        }
-        run._write_record_atomically(marker, marker_p)
-        run.fault_boundary("marker-written")
+            validation_record=validation_data,
+            register_record=register_result,
+            written_at=now_iso,
+        )
+        begin_publication(marker, resolved_root)
         complete_publication(store_id, resolved_root, finalize=finalize)
         return validation_data
 
     # Nothing staged: write the record beside whatever is (or is not) published.
     _write_yaml_atomically(validation_data, val_yaml_path)
-    run._write_record_atomically(register_result, reg_rec_p)
+    run.write_record_atomically(register_result, reg_rec_p)
 
     return validation_data
 
@@ -1659,6 +1878,8 @@ __all__ = [
     "OBSERVED_FIELDS",
     "RHO_STEP",
     "STORE_FACT_FIELDS",
+    "CLUMP_STEP",
+    "clump_facts",
     "RSID_CONFLICT_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",
@@ -1673,7 +1894,18 @@ __all__ = [
     "acceptance_evidence",
     "check_argv_drift",
     "committed_revision",
+    "begin_publication",
+    "build_publication_marker",
+    "build_register_record",
+    "build_validation_record",
     "complete_publication",
+    "engines_of",
+    "load_publication_marker",
+    "phase_validate_step",
+    "recorded_engine",
+    "unused_archive_stamp",
+    "validator_version",
+    "write_text_atomically",
     "finish_build_phase_publication",
     "forced_completion",
     "harvest_observed_measurements",

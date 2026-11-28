@@ -1,27 +1,50 @@
-status: passed
-validated_at: '2026-10-21T05:45:53.208213Z'
+status: passed_with_warnings
+validated_at: '2026-11-26T15:08:43.180412Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@4e922566d7fa4c13a11be3637069da63e48be28c
+  version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
 build_environment:
-  opengwasdb_version: 0.3.0
-  opengwasdb_commit: 4e922566d7fa4c13a11be3637069da63e48be28c
+  opengwasdb_version: 0.20.0
+  opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
   python_version: 3.12.15
-  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+  platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
+  engines:
+  - opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
+    opengwasdb_version: 0.20.0
+    steps:
+    - rewrite-release
+  - opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
+    opengwasdb_version: 0.23.0
+    steps:
+    - rho
+    - clump
+    - overview
+    - validate
 observed:
-  format_version: 0.2.0
+  format_version: 0.3.0
   n_analyses: 1691
   n_variants: 27929380
   n_associations: null
-  store_bytes: 125595771482
+  association_coverage: null
+  reference_assembly: null
+  store_bytes: 125178949048
   has_hm3: true
-  has_rho: null
+  has_rho: true
+  has_clumps: true
+  n_loci_5e8: null
+  n_unclumped_5e8: null
   n_top_hits: null
-  build_elapsed_s: 560415.087
-  validate_status: passed
+  build_elapsed_s: 576162.806
+  validate_status: passed_with_warnings
+  completion_state: observed_only
 checks:
-  store: passed
-warnings: []
+  store: passed_with_warnings
+warnings:
+- 'data.zarr/se: 21671 of 21671 se exceptions (100.00%) are exactly what a float16
+  plane stores, against 0.01% by chance: the plane was rounded to float16 before its
+  encoding plan was chosen (issue #355); rebuild the release [a deviation recorded
+  by ogdb rewrite-release --convert-legacy, which converted this release from format_version
+  0.2.0 (release OGS-00016); a rebuild from source fixes it]'
 errors: []
 acceptance:
   recorded_at: null
@@ -38,3 +61,38 @@ acceptance:
   reports: null
   reference_overlap: null
   store_composition: null
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00016/replaced/20261126T143845Z
+  replaced_at: '2026-11-26T15:08:43.180412Z'
+rewrite:
+  record: /data/opengwasdb/stores/OGS-00016/records/rewrite-release.json
+  staged: /data/opengwasdb/stores/OGS-00016/store.opengwasdb.0.3.0
+  command:
+  - /data/opengwasdb/work/orchestrate/opengwasdb-450/worktrees/stores522/.pixi/envs/workflow/bin/opengwasdb
+  - rewrite-release
+  - /data/opengwasdb/stores/OGS-00016/store.opengwasdb
+  - /data/opengwasdb/stores/OGS-00016/store.opengwasdb.0.3.0
+  - --convert-legacy
+  - --not-lifted
+  - --n-workers
+  - '16'
+  convert_legacy: true
+  release_id: 6bb8d940-06ed-437d-a0f4-b0435192fd91
+  format_version: 0.3.0
+  source_release_id: OGS-00016
+  source_format_version: 0.2.0
+  deviations:
+  - side_tables.se_exceptions_rounded
+post_additions:
+- added_at: '2026-11-26T15:08:43.180412Z'
+  steps:
+  - rho
+  - clump
+  - overview
+  records:
+  - /data/opengwasdb/stores/OGS-00016/records/rho.json
+  - /data/opengwasdb/stores/OGS-00016/records/clump.json
+  - /data/opengwasdb/stores/OGS-00016/records/overview.json
+  - /data/opengwasdb/stores/OGS-00016/records/validate.json
+  release_id: 6bb8d940-06ed-437d-a0f4-b0435192fd91
+  replaced_archive: /data/opengwasdb/stores/OGS-00016/replaced/20261126T143845Z

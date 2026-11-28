@@ -177,6 +177,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         derived_from: str | None = None,
         indexed_subset: bool = False,
         single_id: bool = False,
+        clumps: bool = False,
     ) -> None:
         bundle_root = self.registry / store_id
         bundle_root.mkdir(parents=True, exist_ok=True)
@@ -195,6 +196,8 @@ class RuntimeGuardTestCase(unittest.TestCase):
             "completion_state": "reference_completed" if completion else "observed_only",
             "post": {"top_hits": not completion, "rho": False, "overview": True},
         }
+        if clumps:
+            build["post"].update(clumps=True, ld_stores={"EUR": "/ld/EUR"})
         if completion or single_id:
             build["complete"] = {
                 "command": "complete-dense",
@@ -421,6 +424,29 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
         self.assertEqual(identity.revision, LOCKED)
 
+    def test_a_scheduled_clump_step_is_probed_and_refused_without_it(self) -> None:
+        """A plan that includes `post.clumps` needs the engine's `clump` command (#526); one that does not, does not."""
+        self._write_bundle("OGS-00090", clumps=True)
+        without = self._runnable("without-clump", commands={"validate"})
+        with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00090", "clump"), self._job("OGS-00090", "validate")],
+                registry_root=self.registry,
+                executable=str(without.executable),
+            )
+        record_check()
+        self.assertIn("clump", str(ctx.exception))
+        with_clump = self._runnable("with-clump", commands={"clump", "validate"})
+        runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "clump"), self._job("OGS-00090", "validate")],
+            registry_root=self.registry,
+            executable=str(with_clump.executable),
+        )
+        record_check()
+        self._write_bundle("OGS-00091")
+        self.assertNotIn("clump", runtime.required_commands_for_release("OGS-00091", registry_root=self.registry))
+        self.assertIn("clump", runtime.required_commands_for_release("OGS-00090", registry_root=self.registry))
+
     def test_missing_scheduled_capability_is_refused(self) -> None:
         self._write_bundle("OGS-00090")
         partial = self._runnable("partial", commands={"build-dense-vcf"})
@@ -572,9 +598,9 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
         self.assertIn("0.1.0", str(ctx.exception))
 
-    def test_completion_parent_0_2_2_and_0_2_3_pass(self) -> None:
-        """A 0.2.2 parent completes to 0.2.3 (opengwasdb#338); a 0.2.3 parent completes as it is."""
-        for parent_format in ("0.2.2", "0.2.3"):
+    def test_completion_parent_0_2_2_0_2_3_and_0_3_0_pass(self) -> None:
+        """A 0.2.2 parent completes to 0.2.3 (opengwasdb#338); a 0.2.3 or 0.3.0 parent completes as it is (#527)."""
+        for parent_format in ("0.2.2", "0.2.3", "0.3.0"):
             with self.subTest(parent_format=parent_format):
                 self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
                 self._write_bundle("OGS-00090")
@@ -589,13 +615,13 @@ class RuntimeGuardTestCase(unittest.TestCase):
                 self.assertEqual(identity.format_version, runtime.REQUIRED_FORMAT_VERSION)
 
     def test_completion_parent_below_0_2_2_is_refused_and_rebuilt_not_converted(self) -> None:
-        """0.2.0 and 0.2.1 parents are refused: the pinned engine's completion consumes 0.2.2 and 0.2.3.
+        """0.2.0 and 0.2.1 parents are refused: the pinned engine's completion consumes 0.2.2, 0.2.3 and 0.3.0.
 
         Indel ALIDs spell the reference first from 0.2.2 (opengwasdb#381), so
         completing an older parent would sort the panel's indels beside the
-        Store's own. The remedy is a rebuild with this engine; the converter
-        writes 0.2.0, which completion refuses too, so the message must not
-        send the operator to it.
+        Store's own. The remedy is a rebuild with this engine, or a
+        rewrite to 0.3.0 (ADR 0043); the message must not send the operator
+        to the old 0.2.0 converter.
         """
         for old in ("0.2.0", "0.2.1"):
             with self.subTest(parent_format=old):

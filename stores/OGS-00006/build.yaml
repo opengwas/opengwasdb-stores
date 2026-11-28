@@ -7,6 +7,9 @@ build:
 post:
   top_hits: true
   overview: false
+  clumps: true
+  ld_stores:
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store
 complete:
   command: complete-ragged
   options:

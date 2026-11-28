@@ -25,7 +25,7 @@ from opengwasdb.model import analyses as opengwasdb_analyses
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 import ogstores.bundle
-from ogstores import bundle, paths
+from ogstores import bundle, engine, paths
 from ogstores.plan import plan
 
 n_checks = 0
@@ -278,7 +278,9 @@ class TestBundleContract(unittest.TestCase):
         released Store (#314 comment 6478111346), so its Release Status is
         `validated` and `human_acceptance` is `accepted`. A forced rebuild on
         12 Nov 2026 (#460) then re-registered the record at opengwasdb 0.9.1,
-        the run that lifted the Trait positions into GRCh38.
+        the run that lifted the Trait positions into GRCh38, and a forced
+        rebuild on 25 Nov 2026 (#524) at opengwasdb 0.20.0 re-registered it at
+        format 0.3.0.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
@@ -292,24 +294,23 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(loaded.validation["status"], "passed")
         record_check()
-        # The engine of the forced rebuild of 12 Nov 2026 (#460). Its commit is
+        # The engine of the forced rebuild of 25 Nov 2026 (#524). Its commit is
         # not restated here: since #253 the lock is the only place it is
         # written (the `engine` suite refuses a tracked file that restates it),
         # so this pins the version the record names and the agreement between
         # the record's `validator` and its `build_environment`.
         build_environment = loaded.validation["build_environment"]
         record_check()
-        self.assertEqual(build_environment["opengwasdb_version"], "0.9.1")
+        self.assertEqual(build_environment["opengwasdb_version"], "0.20.0")
+        # The Clumps were added in place (#532), so the record's validator is the
+        # 0.23.0 engine's, while `build_environment` still names the build's.
         record_check()
-        self.assertEqual(
-            loaded.validation["validator"]["version"],
-            f"opengwasdb@{build_environment['opengwasdb_commit']}",
-        )
+        self.assertEqual(loaded.validation["validator"]["version"], f"opengwasdb@{self.AT_0_23_0}")
         observed = loaded.validation["observed"]
         record_check()
         self.assertEqual(
             (observed["n_analyses"], observed["n_variants"], observed["n_associations"]),
-            (19250, 8927061, 127112772),
+            (19250, 8925496, 127045069),
         )
         carried = loaded.validation["acceptance"]
         record_check()
@@ -366,13 +367,90 @@ class TestBundleContract(unittest.TestCase):
     # The completions of OGS-00012, OGS-00013, OGS-00014 and OGS-00015 each
     # published a Store of their own, and register wrote the record for what it
     # published (ADR 0037).
+    # A record written at the locked engine is pinned through `engine.locked_commit`;
+    # when the lock moves, its pin becomes the literal commit, as these did when the
+    # lock moved to 0.26.0 for opengwasdb#509.
+    AT_LOCK = engine.locked_commit(REPO_ROOT / "pixi.lock")
+    # The lock when #509/#532's records were written (engine 0.26.0).
+    AT_0_26_0 = "964ac1b28a3096553559d4a8565d877a884470e9"
+    #: engine 0.23.0, the lock of #531's and #532's in-place additions.
+    AT_0_23_0 = "e97f07b51094e4635db571f72407fcdb7f8d56e7"
     MVP_RECORD_RUNTIME = {
-        "OGS-00016": "4e922566d7fa4c13a11be3637069da63e48be28c",
-        "OGS-00012": "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c",
-        "OGS-00013": "44f25a96fb43044a983e300a038a54ab1930e782",
-        "OGS-00014": "496bfe9cc9bbc85c60718d62aa4c6d43d83af810",
-        "OGS-00015": "44f25a96fb43044a983e300a038a54ab1930e782",
+        # The records of OGS-00012, -13, -14, -15 and -16 are the in-place Rho and
+        # Clumps additions' (#531, #532), validated at engine 0.23.0. Each
+        # Store was converted to format 0.3.0 by `publish-rewrite` first (#525);
+        # validate warns of the one accepted deviation
+        # (side_tables.se_exceptions_rounded).
+        "OGS-00012": AT_0_23_0,
+        "OGS-00013": AT_0_23_0,
+        "OGS-00014": AT_0_23_0,
+        "OGS-00015": AT_0_23_0,
+        "OGS-00016": AT_0_23_0,
     }
+
+    def test_ogs_00011_record_is_the_in_place_recount_rho_and_clumps_at_the_lock(self) -> None:
+        """#532 recounted OGS-00011's top-hit counts and added Rho and Clumps in place at engine 0.26.0."""
+        loaded = bundle.load("OGS-00011", registry_root=REPO_ROOT / "stores")
+        validation = loaded.validation
+        record_check()
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_0_26_0}")
+        observed = validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["has_rho"], observed["has_clumps"], observed["n_loci_5e8"]),
+            (3245, True, True, 327706),
+        )
+        record_check()
+        self.assertEqual(
+            validation["post_additions"][0]["steps"],
+            ["completion-recount-top-hits", "completion-rho", "completion-clump", "completion-overview"],
+        )
+
+    def test_ogs_00032_record_is_the_forced_rebuild_and_completion_at_the_lock(self) -> None:
+        """#532 rebuilt OGS-00032 without its ten mis-scaled Analyses and completed it, at engine 0.26.0."""
+        loaded = bundle.load("OGS-00032", registry_root=REPO_ROOT / "stores")
+        validation = loaded.validation
+        record_check()
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_0_26_0}")
+        observed = validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["completion_state"], observed["has_rho"], observed["has_clumps"]),
+            (369, "reference_completed", True, True),
+        )
+        record_check()
+        self.assertEqual(observed["n_loci_5e8"], 11953)
+        with (REPO_ROOT / "stores" / "OGS-00032" / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
+            excluded = {
+                row["analysis_id"]
+                for row in csv.DictReader(handle, delimiter="\t")
+                if row["exclude_from_build"].strip().lower() == "true" and "mis_scaled_z" in row["inclusion_reason"]
+            }
+        record_check()
+        self.assertEqual(len(excluded), 10)
+
+    def test_ogs_00033_record_is_the_forced_rebuild_and_completion_at_the_lock(self) -> None:
+        """#532 rebuilt OGS-00033 without GCST90278111 and completed it, at engine 0.26.0."""
+        loaded = bundle.load("OGS-00033", registry_root=REPO_ROOT / "stores")
+        validation = loaded.validation
+        record_check()
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_0_26_0}")
+        observed = validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["completion_state"], observed["has_rho"], observed["has_clumps"]),
+            (193, "reference_completed", True, True),
+        )
+        record_check()
+        self.assertEqual(observed["n_loci_5e8"], 3677)
+        with (REPO_ROOT / "stores" / "OGS-00033" / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
+            excluded = {
+                row["analysis_id"]
+                for row in csv.DictReader(handle, delimiter="\t")
+                if row["exclude_from_build"].strip().lower() == "true" and "mis_scaled_z" in row["inclusion_reason"]
+            }
+        record_check()
+        self.assertEqual(excluded, {"GCST90278111"})
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:
         """Register's passing Validation Record, over the frozen-input one.
@@ -385,7 +463,11 @@ class TestBundleContract(unittest.TestCase):
         loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
         validation = loaded.validation
         record_check()
-        self.assertEqual(validation["status"], "passed", store_id)
+        self.assertEqual(
+            validation["status"],
+            "passed_with_warnings" if store_id in {"OGS-00012", "OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016"} else "passed",
+            store_id,
+        )
         record_check()
         self.assertEqual(
             validation["validator"],
@@ -852,6 +934,33 @@ class TestBundleContract(unittest.TestCase):
         self.assertTrue(any("release.yaml must contain a mapping" in error for error in errors))
         self.assertTrue(any("build.yaml must contain a mapping" in error for error in errors))
         self.assertTrue(any("validator exploded" in error for error in errors))
+
+    def test_clumps_declaration_needs_an_explicit_ld_store_mapping(self) -> None:
+        """`post.clumps: true` with no `post.ld_stores` mapping is a build-check error, and a malformed one is too (#526)."""
+        checked = self.make_bundle()
+        post = dict(checked.build.get("post") or {})
+        cases = (
+            ({"clumps": True}, "names no LD Store"),
+            ({"clumps": True, "ld_stores": {}}, "names no LD Store"),
+            ({"clumps": "yes", "ld_stores": {"EUR": "/ld/EUR"}}, "true or false"),
+            ({"clumps": True, "ld_stores": {"EUR": ""}}, "non-empty strings"),
+            ({"clumps": True, "ld_stores": ["EUR=/ld"]}, "maps an ancestry"),
+            ({"clumps": None, "ld_stores": {"EUR": "/ld/EUR"}}, "true or false"),
+            ({"clumps": None}, "true or false"),
+        )
+        for extra, fragment in cases:
+            errors = bundle.check(
+                replace(checked, build={**checked.build, "post": {**post, **extra}}),
+                registry_root=self.tmp_dir,
+            )
+            record_check()
+            self.assertTrue(any(fragment in e for e in errors), (extra, errors))
+        ok = bundle.check(
+            replace(checked, build={**checked.build, "post": {**post, "clumps": True, "ld_stores": {"EUR": "/ld/EUR"}}}),
+            registry_root=self.tmp_dir,
+        )
+        record_check()
+        self.assertFalse(any("clumps" in e or "ld_stores" in e for e in ok), ok)
 
     def test_required_identity_and_provenance_keys(self) -> None:
         checked = self.make_bundle()

@@ -22,7 +22,7 @@ This suite asserts the container migration:
      again at an opengwasdb that takes the bundle's declared Association
      Coverage as a build input, so the second rebuild is the first record here
      that carries the two coverage keys, and again when issue #224 rebuilt and
-     re-completed it under its own id. OGS-00007 joined them when issue #224's
+     re-completed it under its own id, and again at format 0.3.0 by issue #524. OGS-00007 joined them when issue #224's
      forced regions rebuild replaced its migrated record with `register`'s own
      output. The one correction to OGS-00001..3
      while they were format 0.1.0 Stores was their `format_version`, a Release
@@ -141,7 +141,10 @@ CONDITIONAL_OBSERVED_MAPPINGS: dict[str, tuple[str, ...]] = {
 # `ogstores.backfill_observed`, after #498 rewrites the Stores.
 COMPLETION_STATE_FIELD = "completion_state"
 POSTDATED_OBSERVED_FIELDS: frozenset[str] = frozenset(
-    {COMPLETION_STATE_FIELD, "association_coverage", "reference_assembly", "has_hm3", "has_rho", "n_top_hits"}
+    {
+        COMPLETION_STATE_FIELD, "association_coverage", "reference_assembly", "has_hm3", "has_rho", "n_top_hits",
+        "has_clumps", "n_loci_5e8", "n_unclumped_5e8",
+    }
 )
 # The same for `build_environment`: `engines`, every engine a phase used and
 # the steps each ran, is written from #410 on. A record committed before it
@@ -320,18 +323,33 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # inside the regions its build recorded, so the counts are that Store's and
     # `build_elapsed_s` sums the run's steps (build 1,194 + top hits 10 +
     # validate 52 + complete 2,371 + validate 55 + Observed-View Check 290 s).
+    # Rebuilt and re-completed again on 25 Nov 2026 (#524) by a forced run at
+    # opengwasdb c8ebe4ca (0.20.0), at format 0.3.0, from the source bytes now on
+    # disk (the registry's sizes and checksums for 198 re-materialised files were
+    # updated first): `build_elapsed_s` sums build 1,434.88 + top hits 7.134 +
+    # validate 74.647 + complete 3,406.504 + completion-validate 92.545 + the
+    # Observed-View Check 325.673 s. Its Observed-Only build holds 55,288,391
+    # associations in 11,491,840 variants (the 0.2.1 build: 58,054,212 and
+    # 12,086,463): the engine drops 2,766,003 unharmonised indel rows
+    # (`indel_ssf_unharmonised`) and 36 conflicting duplicates, and reads 218 rows
+    # the 0.2.1 build had omitted from files that list one key twice. Completion
+    # then imputes 2,159,513 cells (1,038,186 at 0.2.1: panel indels are placed
+    # reference-first, opengwasdb ADR 0079) and leaves 923 missing.
     "OGS-00006": {
-        "format_version": "0.2.1",
+        "format_version": "0.3.0",
         "n_analyses": 1400,
-        "n_variants": 12357678,
-        "n_associations": 59092457,
+        "n_variants": 12058872,
+        "n_associations": 57448827,
         "association_coverage": "signals_only",
         "reference_assembly": None,
-        "store_bytes": 1584802717,
+        "store_bytes": 1683609576,
         "has_hm3": False,
         "has_rho": None,
         "n_top_hits": None,
-        "build_elapsed_s": 3972.747,
+        "has_clumps": True,
+        "n_loci_5e8": 4389,
+        "n_unclumped_5e8": 63690,
+        "build_elapsed_s": 5349.309,
         "validate_status": "passed_with_warnings",
         "completion_state": "reference_completed",
     },
@@ -446,12 +464,26 @@ class TestCommittedValidationRecords(unittest.TestCase):
         """The validator version is the opengwasdb revision the record's build_environment names."""
         for store_id in STORES:
             record = self.load(store_id)
-            commit = record["build_environment"].get("opengwasdb_commit")
+            environment = record["build_environment"]
+            commit = environment.get("opengwasdb_commit")
             self.assertTrue(commit, f"{store_id} must record an opengwasdb commit")
+            # A post step added in place (#531, #532) validates at a later engine
+            # than the build, which the record keeps in `engines` beside the build's:
+            # the validator is the engine whose `steps` include the final validate.
+            engines = environment.get("engines") or []
+            final = next(
+                (name for name in ("completion-validate", "validate")
+                 if any(name in (e.get("steps") or []) for e in engines)),
+                None,
+            )
+            expected = (
+                {e.get("opengwasdb_commit") for e in engines if final in (e.get("steps") or [])}
+                if final else {commit}
+            )
             self.assertEqual(
-                record["validator"]["version"],
-                f"opengwasdb@{commit}",
-                f"{store_id}.validator.version must name the recorded opengwasdb revision",
+                {record["validator"]["version"]},
+                {f"opengwasdb@{c}" for c in expected},
+                f"{store_id}.validator.version must name the engine that ran its final validate",
             )
 
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:
@@ -461,7 +493,8 @@ class TestCommittedValidationRecords(unittest.TestCase):
         recorded them, OGS-00001 as #514's forced 0.3.0 self-completion recorded
         it, OGS-00002 as the #348 and #460 re-registrations recorded it, OGS-00004
         and OGS-00005 as the #232 forced rebuilds recorded them, and OGS-00006 as
-        #224's re-completion recorded it.
+        #524's forced 0.3.0 rebuild and re-completion recorded it, with the Clumps
+        #532 added in place.
         """
         self.assertEqual(set(GOLDEN_OBSERVED), set(REREGISTERED))
         for store_id, expected in GOLDEN_OBSERVED.items():

@@ -118,7 +118,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
     def test_canonical_columns_present_in_order(self) -> None:
         """stores.tsv contains exactly the canonical columns in defined order."""
-        self.assertEqual(len(COLUMNS), 31)
+        self.assertEqual(len(COLUMNS), 32)
         expected = (
             "store_id",
             "label",
@@ -141,6 +141,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "store_bytes",
             "has_hm3",
             "has_rho",
+            "has_clumps",
             "n_top_hits",
             "build_elapsed_s",
             "validate_status",
@@ -185,6 +186,36 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
         self.assertEqual(
             (row["store_bytes"], row["has_hm3"], row["has_rho"], row["n_top_hits"]), ("", "", "", "")
         )
+
+    def test_has_clumps_renders_true_false_and_empty(self) -> None:
+        """`has_clumps` reaches stores.tsv as true, false, or empty when the record says null or nothing (#526)."""
+        cells = {}
+        for n, (observed, key) in enumerate(
+            (({"has_clumps": True}, "true"), ({"has_clumps": False}, "false"), ({"has_clumps": None}, "null"), ({}, "absent"))
+        ):
+            b = create_mock_bundle(
+                self.stores_dir,
+                f"OGS-0004{n}",
+                label=f"clumps-{key}",
+                validation_data={"status": "passed", "observed": observed},
+            )
+            cells[key] = render_stores_row(b)["has_clumps"]
+        self.assertEqual(cells, {"true": "true", "false": "false", "null": "", "absent": ""})
+
+    def test_stores_md_shows_has_clumps(self) -> None:
+        """STORES.md carries the same `has_clumps` cell as stores.tsv: true, false, or `-` when unrecorded (#526)."""
+        bundles = [
+            create_mock_bundle(
+                self.stores_dir, f"OGS-0005{n}", label=f"md-clumps-{n}",
+                validation_data={"status": "passed", "observed": observed},
+            )
+            for n, observed in enumerate(({"has_clumps": True}, {"has_clumps": False}, {}))
+        ]
+        rows = [render_stores_row(b) for b in bundles]
+        md = render_stores_md(bundles, rows)
+        self.assertIn("| Associations | Clumps | Validated |", md)
+        cells = [line.split("|")[-3].strip() for line in md.splitlines() if line.startswith("| `OGS-0005")][:3]
+        self.assertEqual(cells, ["true", "false", "-"])
 
     def test_a_non_boolean_store_flag_stops_the_master_list(self) -> None:
         b = create_mock_bundle(
@@ -726,7 +757,7 @@ class TestPublishedCompletionState(unittest.TestCase):
                     # Rendered from plan(), which names the record since #428.
                     "--admission-record /art/OGS-00042/store.opengwasdb.admission "
                     "--source-assembly hg38\t"
-                    "0.2.0\t1\t1\t0\t100\t180\t4096\t\t\t\t12.5\tpassed\t"
+                    "0.2.0\t1\t1\t0\t100\t180\t4096\t\t\t\t\t12.5\tpassed\t"
                     "NA\tNA\tNA\tNA\tNA\tNA\tNA",
                     "OGS-00043\tlegacy-child\tdense\treference_completed\tbuilt\t"
                     "OGS-00042\tfalse\t/art/OGS-00043/store.opengwasdb\t"
@@ -734,7 +765,7 @@ class TestPublishedCompletionState(unittest.TestCase):
                     "opengwasdb complete-dense /art/OGS-00042/store.opengwasdb "
                     "/art/OGS-00043/store.opengwasdb --release-id OGS-00043 "
                     "--ancestry EUR\t"
-                    "0.2.0\t1\t1\t0\t100\t180\t4096\t\t\t\t12.5\tpassed\t"
+                    "0.2.0\t1\t1\t0\t100\t180\t4096\t\t\t\t\t12.5\tpassed\t"
                     "NA\tNA\tNA\tNA\tNA\tNA\tNA",
                     "",
                 ]
@@ -743,12 +774,12 @@ class TestPublishedCompletionState(unittest.TestCase):
         md = render_stores_md([parent, child], rows)
         self.assertIn(
             "| `OGS-00042` | legacy-parent | false | dense | observed_only | built | "
-            "0.2.0 | 1 | 0 | 100 | 180 | passed |",
+            "0.2.0 | 1 | 0 | 100 | 180 | - | passed |",
             md,
         )
         self.assertIn(
             "| `OGS-00043` | legacy-child | false | dense | reference_completed | built | "
-            "0.2.0 | 1 | 0 | 100 | 180 | passed |",
+            "0.2.0 | 1 | 0 | 100 | 180 | - | passed |",
             md,
         )
         self.assertNotIn("completion pending", md)

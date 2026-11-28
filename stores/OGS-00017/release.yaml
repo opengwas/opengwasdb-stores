@@ -36,7 +36,11 @@ generator:
 description: |
   Full FinnGen R13 release: every endpoint in the frozen public summary-statistics manifest (2,754 endpoints -- three inverse-rank-normalised quantitative endpoints plus every case-control endpoint), selected in the manifest's own order. Production-scale sibling of the 20-Analysis r13-pilot-20 trial (OGS-00003); the pilot assessment is the onboarding evidence, and this release carries no analysis cap.
 notes: |
-  Selection is the whole frozen provider manifest, so the release membership is exactly what FinnGen publishes and the pinned manifest checksum makes the Analysis order reproducible. Every endpoint must still be honestly classified by the metadata resolver (a quantitative endpoint with num_cases=N, or a case-control endpoint with positive case and control counts); an endpoint the resolver cannot classify fails the emit rather than being dropped.
+  Selection is the whole frozen provider manifest, so the release membership is exactly what FinnGen
+  publishes and the pinned manifest checksum makes the Analysis order reproducible. Every endpoint
+  must still be honestly classified by the metadata resolver (a quantitative endpoint with
+  num_cases=N, or a case-control endpoint with positive case and control counts); an endpoint the
+  resolver cannot classify fails the emit rather than being dropped.
 
   Release Erratum (2026-10-13, owner-authorized renumbering): this release was
   migrated from OGS-00016 to OGS-00017 so the MVP META observed-only Store can
@@ -116,6 +120,55 @@ notes: |
   Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 59347303722.
   That is exactly 2754 x 21549493, n_analyses times n_variants, not a count. `register` multiplied
   the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by
-  #322); this Store was registered before that change reached this branch. The product counts matrix cells, which here include the imputed cells and the off-panel cells completion left missing, so it is not the number of observed associations.
+  #322); this Store was registered before that change reached this branch. The product counts matrix
+  cells, which here include the imputed cells and the off-panel cells completion left missing, so it
+  is not the number of observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
+
+  2026-11-25: converted to format 0.3.0 (#525, epic #520). The owner approved converting the
+  priority Stores in place, and publishing them, provided validation shows only the recorded deviation
+  warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
+  `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
+  from 15:01:14 to 19:15:01 UTC, exit 0, in 4 h 13 min 47 s wall (peak RSS 57,537,064 kB). The converter
+  read 21,549,493 rows x 2,754 Analyses, 318,878 of them rows no cell is observed in (the panel rows
+  completion added), asked the source 144 questions (9 ALID probes, 22 range probes, 16 Indexed Variant
+  Subset questions, 3 rsID misses, and a range PheWAS narrowed to 907 of 944,152 variants on chromosome
+  1) and asked the staged release the same ones: every answer matches. It was published through
+  `pixi run publish-rewrite OGS-00017` (#533), which validated the staged release and moved it into
+  place at 19:39:18 UTC (23 min 34 s wall); the 0.2.0 Store is archived, kept, at
+  replaced/20261125T191549Z (139 GB). Validation passed with warnings: no errors, and one warning, the
+  accepted deviation `side_tables.se_exceptions_rounded` (all 9,838,867 se exceptions are exactly what a
+  float16 plane stores, issue #355; a rebuild from source fixes it). The manifest also records
+  `variant_table.indel_order`, which validate does not report. Counts are unchanged: 2,754 Analyses,
+  21,549,493 variants; store_bytes 139,094,032,339 to 138,893,403,126. build_elapsed_s 268,779.735 is
+  the 0.2.0 record's 252,143.658 plus 16,636.08 s for the conversion (15,227 s) and the staged
+  release's validation. The Store reads without pysam and carries no variant_offsets.npy; it keeps
+  index.sqlite for completion_quality (ADR 0102). Reads of an Analysis (21,229,683 observed and
+  318,222 imputed cells), rsID lookups and PheWAS (2,754 observed cells), a range (96,390 observed
+  cells) and an imputed panel variant's PheWAS (2,754 imputed cells) return the same z, se, eaf and
+  status as the 0.2.0 archive. Its Reference-Completed state is unchanged, and so is the Release
+  Status, validated. A rebuild from source remains the owner's call for the `indel_order` deviation.
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with
+  `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the
+  owner's, accepted on #522. Every Analysis is unassigned, so the declaration yields no Clumps
+  (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped
+  only because a mapping is required.
+
+  2026-11-26: Rho and Clumps added in place (#532, epic #520). The owner approved the run on
+  2026-11-26 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release
+  OGS-00017` (ADR 0044, engine 0.23.0 (e97f07b5)) staged a reflink copy and ran `opengwasdb
+  build-dense-rho` (1,346.4 s, 3,790,881 Analysis pairs), `opengwasdb clump --ld-store
+  EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (7.7 s), the overview (3.0
+  s) and validate (1,232.7 s), from 15:40:21 to 16:23:44 UTC (43 min 23 s wall, peak RSS 28,199,420
+  kB; 1-minute load average 57 at the start, 63 at the end (mean 70, up to 97)). The new record is
+  `passed_with_warnings` for the one warning it had, the accepted se float16 deviation with its
+  conversion's note; no new warning. has_clumps is true, has_rho is true; no Clump Lead or locus:
+  every Analysis is unassigned (`not_clumped.no_assigned_ancestry` 2,754), so n_loci_5e8 stays blank;
+  the p_5e_08 tier holds 3,722,223 rows, none with a Clump Lead; store_bytes 138,893,403,126 to
+  138,909,730,010. Read without pysam, rho_matrix is 2,754 x 2,754 and every off-diagonal pair is
+  finite, rho_row gives 2,753 pairs, the Clumps read, and z, se and eaf of three Analyses equal the
+  archived Store's. The previous Store, records and Validation Record are archived at
+  replaced/20261126T154025Z.

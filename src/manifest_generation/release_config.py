@@ -69,6 +69,7 @@ from ogstores.bundle import (
     INDEXED_SUBSET_OPTIONAL_KEYS,
     INDEXED_SUBSET_REQUIRED_KEYS,
     SUPERPOPULATIONS,
+    ld_store_mapping_problem,
 )
 
 __all__ = [
@@ -94,7 +95,11 @@ ACCESS_POSTURES: tuple[str, ...] = ("public", "controlled", "embargoed")
 #: registry's own vocabulary, so it is checked. ``ogstores.plan`` is Store
 #: Release Build's, which Manifest Generation does not import, so the names
 #: are listed here; a test holds them to the planner's.
-BUILD_POST_KEYS: tuple[str, ...] = ("top_hits", "overview", "rho", "validate")
+BUILD_POST_KEYS: tuple[str, ...] = ("top_hits", "overview", "rho", "clumps", "ld_stores", "validate")
+
+#: The one `post` key that is not on or off: the LD Store each Assigned Ancestry is
+#: clumped against (`post.clumps`, #526), a mapping from ancestry to path.
+BUILD_POST_MAPPING_KEYS: frozenset[str] = frozenset({"ld_stores"})
 
 #: The kind a Canonical Trait Mapping Table resource declares
 #: (``trait_ontology_mapping``'s ``resource.yaml``).
@@ -477,7 +482,11 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
             raise ReleaseConfigError(f"{where}.{key} must be a mapping")
     post_block = _block(build_block["post"], f"{where}.post", (), BUILD_POST_KEYS)
     for key, value in post_block.items():
-        if not isinstance(value, bool):
+        if key in BUILD_POST_MAPPING_KEYS:
+            problem = ld_store_mapping_problem(value)
+            if problem is not None:
+                raise ReleaseConfigError(f"{where}.{problem}")
+        elif not isinstance(value, bool):
             raise ReleaseConfigError(f"{where}.post.{key} must be true or false, not {value!r}")
     completion_state = _text(build_block["completion_state"], f"{where}.completion_state")
     if completion_state not in COMPLETION_STATES:
