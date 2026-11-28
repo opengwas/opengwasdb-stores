@@ -1062,7 +1062,7 @@ class TestRealEngine(unittest.TestCase):
             self.assertEqual(record["observed"]["format_version"], "0.3.0")
             # The deviation, and `effect_consistency.unchecked` (opengwasdb#510): a conversion keeps a
             # pre-#510 release's effect-consistency columns absent, so the engine warns of every
-            # one, and the route accepts that only as a warning the replaced record carried.
+            # one, and the route accepts it as a named legacy warning (`LEGACY_WARNINGS`).
             self.assertEqual(len(record["warnings"]), 2)
             self.assertEqual(record["rewrite"]["carried_warnings"], [])
             self.assertEqual(
