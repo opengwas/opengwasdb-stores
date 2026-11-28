@@ -90,8 +90,11 @@ LD_PANEL_KIND: str = "ld_panel"
 #: `complete-dense` flags whose values are the Reference Resource's: `--ancestry`
 #: names both the panel directory and the Analyses it completes, so a config
 #: that also sets one here would either override the declared panel or be
-#: overridden by it.
-PANEL_OPTIONS: tuple[str, ...] = ("ld-panel", "ancestry")
+#: overridden by it. `--ld-panel-id` is the Reference Resource's id: the engine
+#: records it as the panel a completion read (opengwasdb#327), and with none it
+#: records `sha256:` and a digest prefix, which no registry can match to a
+#: declared resource.
+PANEL_OPTIONS: tuple[str, ...] = ("ld-panel", "ld-panel-id", "ancestry")
 
 
 class CompletionError(ValueError):
@@ -342,6 +345,7 @@ def completion_block(recipe: CompletionRecipe | None) -> dict | None:
         "command": recipe.command,
         "options": {
             "ld-panel": recipe.panel.location,
+            "ld-panel-id": recipe.panel.resource_id,
             "ancestry": recipe.panel.ancestry,
             **dict(recipe.options),
         },

@@ -141,11 +141,14 @@ class FullReleaseConfigTest(unittest.TestCase):
         # pipeline's own rendering of this config, for that Store id, is the
         # committed build.yaml -- both blocks, the hm3 subset, the post steps and
         # the hg19 source assembly, document for document.
+        # The one difference is `--ld-panel-id` (opengwasdb#327): the pipeline now
+        # names the Reference Resource the completion reads, and the published
+        # recipe, a record of what ran, is never edited to say it.
         candidate = load_candidate_configuration(FULL_CONFIG, REPO_ROOT)
-        self.assertEqual(
-            render_build_yaml("OGS-00009", candidate),
-            yaml.safe_load(ACCEPTED_BUILD.read_text(encoding="utf-8")),
-        )
+        accepted = yaml.safe_load(ACCEPTED_BUILD.read_text(encoding="utf-8"))
+        rendered = render_build_yaml("OGS-00009", candidate)
+        self.assertEqual(rendered["complete"]["options"].pop("ld-panel-id"), "ukb-hg38-eur-ld")
+        self.assertEqual(rendered, accepted)
 
     def test_the_cross_build_lift_chain_is_declared_and_passed(self) -> None:
         # The VCFs are GRCh37 and the ancestry mixture is GRCh38, so the resolver

@@ -2621,6 +2621,36 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(validation["checks"]["reference_overlap"], "passed")
         self.assertEqual(validation["errors"], [])
 
+    def test_an_effect_the_resolver_refused_is_excluded_by_that_reason(self) -> None:
+        """opengwasdb#510: a source whose effect contradicts its own p-value is excluded as such, not as a parse failure."""
+        self._set_outcome(
+            "GCST90000001", status="controlled_failure", effect_consistency_refused=True,
+            error="effect contradicts the source's own p-value: the median |log10 p| is 1.73e+03",
+        )
+        # An ordinary controlled failure keeps its reason.
+        run = _run_cli(self.fixture)
+        self.assertEqual(run.returncode, 0, run.stderr + run.stdout)
+        bundle = self.fixture.registry_root / STORE_ID
+        exclusions = {row["analysis_id"]: row for row in _read_tsv(bundle / "sidecars/exclusions.tsv")}
+        self.assertEqual(exclusions["GCST90000001"]["reason"], "effect_consistency_refused")
+        self.assertEqual(exclusions["GCST90000001"]["category"], "resolution")
+        self.assertIn("contradicts the source's own p-value", exclusions["GCST90000001"]["detail"])
+        self.assertEqual(exclusions["GCST90000008"]["reason"], "resolution_failed")
+        analyses = {row["analysis_id"]: row for row in _read_tsv(bundle / "analyses.tsv")}
+        self.assertEqual(analyses["GCST90000001"]["exclude_from_build"], "true")
+
+    def test_the_bundle_declares_each_analysis_p_value_test_for_the_build_manifest(self) -> None:
+        """opengwasdb#510, ADR 0085: the build reads `p_value_test` from the manifest the registry derives from this table."""
+        self._declare_p_value_tests("GCST90000002\tjoint_2df\tjoint test (fixture)\n")
+        run = _run_cli(self.fixture)
+        self.assertEqual(run.returncode, 0, run.stderr + run.stdout)
+        analyses = {
+            row["analysis_id"]: row for row in _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        }
+        self.assertEqual(analyses["GCST90000002"]["p_value_test"], "joint_2df")
+        self.assertEqual(analyses["GCST90000004"]["p_value_test"], "wald_1df")
+        self.assertEqual({row["p_value_test"] for row in analyses.values()} - {"joint_2df", "wald_1df"}, set())
+
     def test_bundle_overlap_sidecar_and_gate_name_worst_contributor(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
@@ -3576,6 +3606,7 @@ class ReferenceCompletionTests(unittest.TestCase):
                 "command": "complete-dense",
                 "options": {
                     "ld-panel": str(fixture.root / "reference" / "ld"),
+                    "ld-panel-id": COMPLETION_PANEL_RESOURCE_ID,
                     "ancestry": "EUR",
                     "n-workers": 2,
                 },
@@ -3670,6 +3701,11 @@ class ReferenceCompletionTests(unittest.TestCase):
         for flag in self.OMITTED_OPTIONS.get(step, ()):
             position = expected.index(flag)
             del expected[position:position + 2]
+        if step == "complete":
+            # The golden predates `--ld-panel-id` (opengwasdb#327): the bundle now
+            # names the panel's Reference Resource, right after the panel's path.
+            position = expected.index("--ld-panel") + 2
+            expected[position:position] = ["--ld-panel-id", COMPLETION_PANEL_RESOURCE_ID]
         return expected
 
     def assert_matches_the_single_id_golden(self, steps, fixture: Fixture, artifact_root: Path) -> None:

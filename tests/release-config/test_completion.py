@@ -334,11 +334,19 @@ class CompletionRecipeTests(FixtureCase):
                 "command": "complete-dense",
                 "options": {
                     "ld-panel": str(self.root / "reference" / "ld"),
+                    "ld-panel-id": LD_RESOURCE,
                     "ancestry": "EUR",
                     "n-workers": 32,
                 },
             },
         )
+
+    def test_the_panel_id_is_the_resources_and_a_config_cannot_set_it(self) -> None:
+        """opengwasdb#327: the recorded panel identity is the Reference Resource id, never a flag of the config's."""
+        recipe = self.load(self.with_completion(completion_recipe())).completion
+        self.assertEqual(completion.completion_block(recipe)["options"]["ld-panel-id"], recipe.panel.resource_id)
+        with self.assertRaisesRegex(completion.CompletionError, "ld-panel-id"):
+            completion.complete_options({"ld-panel-id": "mine"}, "build.complete.options")
 
     def test_the_declarations_status_is_recorded_and_never_promotes_a_reference(self) -> None:
         # `status: available` is not a qualification. A pending reference is
@@ -557,6 +565,7 @@ class CompletionBundleTests(FixtureCase):
                 "command": "complete-dense",
                 "options": {
                     "ld-panel": str(self.root / "reference" / "ld"),
+                    "ld-panel-id": LD_RESOURCE,
                     "ancestry": "EUR",
                     "n-workers": 32,
                 },

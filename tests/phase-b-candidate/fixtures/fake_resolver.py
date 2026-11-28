@@ -367,6 +367,14 @@ def scan_diagnostics(row: dict, options: dict, outcome: dict) -> dict:
     else:
         diagnostics["build_eligible_rows_on_variant_reference"] = None
         diagnostics["build_eligible_rows_off_variant_reference"] = None
+    if outcome.get("effect_consistency_refused"):
+        # The record's measurement as opengwasdb#510's resolver writes it for an
+        # Analysis whose stored z contradicts its source's own p-value.
+        diagnostics["effect_consistency"] = {
+            "n_rows_considered": rows_read, "n_rows_compared": rows_read, "sampled": False,
+            "median_abs_delta": 1732.0, "median_delta": 1732.0, "skip_reason": None,
+            "refused": True, "refused_by": "median_abs_delta",
+        }
     return diagnostics
 
 

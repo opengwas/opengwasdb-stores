@@ -325,8 +325,8 @@ class QualityCheckTests(unittest.TestCase):
         # vocabulary is exactly the registry's reasons plus the policy's.
         self.assertEqual(
             set(POLICY_EXCLUSION_CATEGORIES),
-            {"resolution_failed", "missing_sample_size", "missing_case_control_counts",
-             "not_maf_filtered"},
+            {"resolution_failed", "effect_consistency_refused", "missing_sample_size",
+             "missing_case_control_counts", "not_maf_filtered"},
         )
         self.assertFalse(set(POLICY_EXCLUSION_CATEGORIES) & set(declared))
         self.assertEqual(
