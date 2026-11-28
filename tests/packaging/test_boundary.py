@@ -47,9 +47,13 @@ RESOLUTION_AREA_NAMES = re.compile(r"resolution[_ -]?(root|area|receipt)", re.IG
 # #249: `paths` is the Store id grammar and the Artifact Root / work-root
 # resolution the emitter must agree with, and `index` regenerates stores.tsv
 # and STORES.md after an emit. `engine` is the one engine identity both
-# workflows check against pixi.lock (#253, ADR 0035's amendment). Adding a
-# module here widens the boundary.
-CONTRACT_AND_SHARED_LAYOUT = {"ogstores", "ogstores.bundle", "ogstores.paths", "ogstores.index", "ogstores.engine"}
+# workflows check against pixi.lock (#253, ADR 0035's amendment). `increment`
+# is the contract's Increment Bundle half (ADR 0045, #546): `bundle.check`
+# applies it, the emit writes an increment against it, and the increment route
+# folds one by it. Adding a module here widens the boundary.
+CONTRACT_AND_SHARED_LAYOUT = {
+    "ogstores", "ogstores.bundle", "ogstores.increment", "ogstores.paths", "ogstores.index", "ogstores.engine",
+}
 
 
 # The Analysis Catalog (#323, ADR 0039) reads Release Bundles through the contract
@@ -329,13 +333,17 @@ class StoreReleaseBuildBoundaryTest(unittest.TestCase):
 
         Quality Checks decide membership before the bundle exists, and
         `analyses.tsv` already carries the decision, so Store Release Build has
-        no reason to read their results.
+        no reason to read their results. The contract is `bundle.py` and its
+        Increment Bundle half, `increment.py` (ADR 0045), which checks an
+        increment's sidecar as `bundle.py` checks a bundle's, and folds it in by
+        appending rows and setting a drop's exclusion columns, never by reading
+        a result to decide anything.
         """
-        contract = REPO_ROOT / "src" / "ogstores" / "bundle.py"
+        contract = {REPO_ROOT / "src" / "ogstores" / name for name in ("bundle.py", "increment.py")}
         offenders = [
             str(path.relative_to(REPO_ROOT))
             for path in store_release_build_files()
-            if path != contract and "quality_checks" in path.read_text(encoding="utf-8")
+            if path not in contract and "quality_checks" in path.read_text(encoding="utf-8")
         ]
         self.assertEqual(offenders, [], "\n".join(offenders))
 

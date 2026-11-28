@@ -256,3 +256,20 @@ possible export alongside it, not the served store.
   placeholder rows (#324) and its summary report (#325). This adds no code.
 
 **Amended by [0041](0041-analysis-catalog-is-laid-out-for-http-range-reads.md).** The full-text index also covers `analysis_id` and `source_analysis_id`, so the list of what it covers under "Schema and build" no longer holds (issue #452). The catalog is also laid out for opengwas.io's range reads, with 32 KB pages, two covering indexes whose names the website relies on, an optimised search index and no free pages.
+
+## Amendment, 28 Nov 2026: Analyses removed by an increment (ADR 0045)
+
+A published Increment Bundle can drop an Analysis from a Store and keep the
+Store id (ADR 0045, on the owner's ruling of 28 Nov 2026 on
+opengwas/opengwasdb#508). The Identifier section's promise that "a saved
+identifier names the same row forever" is narrowed for that case. A dropped
+Analysis's `<store_id>:<analysis_id>` no longer resolves in the catalog. Its
+audit row and removal reason stay in the Release Bundle, and ogquery refuses
+the id by name. Kept and added Analyses are unaffected, and an Analysis still
+never moves between Store ids.
+
+Catalog artifact publication and catalog membership are separate. The version
+hashes every bundle file, so an Increment Bundle that is emitted or accepted
+but not published gives a new version whose membership is unchanged.
+Membership changes only when the increment route folds the increment into
+`analyses.tsv`.

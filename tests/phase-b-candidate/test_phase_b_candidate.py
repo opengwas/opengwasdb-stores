@@ -5147,5 +5147,113 @@ def _pid_alive(pid: int) -> bool:
     return not (stat.exists() and stat.read_text().split(")")[-1].split()[0] == "Z")
 
 
+class IncrementEndToEndTests(unittest.TestCase):
+    """`generate-candidate --increment` through the entry point: resolve, render, emit (ADR 0045 §3, #546).
+
+    The resolver is the suite's fake (``fixtures/fake_resolver.py``), the
+    narrowest seam: it stands in for `opengwasdb resolve-analyses` only, so the
+    freeze, preflight, prepare, verify, render and emit stages are the real
+    ones. A base run emits the bundle; it is then made what an increment needs,
+    a validated Reference-Completed Hybrid that has never held GCST90000004
+    and GCST90000005, which the increment's roster lists.
+    """
+
+    ADDED = ("GCST90000004", "GCST90000005")
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="increment-e2e-")
+        self.fixture = FixtureBuilder(Path(self._tmp.name)).build()
+        base = _run_cli(self.fixture)
+        self.assertEqual(base.returncode, 0, base.stderr + base.stdout)
+        self.bundle_dir = self.fixture.registry_root / STORE_ID
+        for path in [self.bundle_dir / "analyses.tsv", *sorted((self.bundle_dir / "sidecars").glob("*.tsv"))]:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            header = lines[0].split("\t")
+            if "analysis_id" not in header:
+                continue
+            at = header.index("analysis_id")
+            kept = [line for line in lines[1:] if line.split("\t")[at] not in self.ADDED]
+            if "analysis_index" in header:
+                index_at = header.index("analysis_index")
+                kept = [
+                    "\t".join(str(i) if j == index_at else v for j, v in enumerate(line.split("\t")))
+                    for i, line in enumerate(kept)
+                ]
+            path.write_text("\n".join([lines[0], *kept]) + "\n", encoding="utf-8")
+        build = yaml.safe_load((self.bundle_dir / "build.yaml").read_text(encoding="utf-8"))
+        build["completion_state"] = "reference_completed"
+        build["complete"] = {"command": "complete-hybrid", "options": {"ld-panel": "/data/ld", "ancestry": "EUR"}}
+        (self.bundle_dir / "build.yaml").write_text(yaml.safe_dump(build, sort_keys=False), encoding="utf-8")
+        release = yaml.safe_load((self.bundle_dir / "release.yaml").read_text(encoding="utf-8"))
+        release["status"] = "validated"
+        (self.bundle_dir / "release.yaml").write_text(yaml.safe_dump(release, sort_keys=False), encoding="utf-8")
+        validation = yaml.safe_load((self.bundle_dir / "validation.yaml").read_text(encoding="utf-8"))
+        validation["status"] = "passed"
+        (self.bundle_dir / "validation.yaml").write_text(yaml.safe_dump(validation, sort_keys=False), encoding="utf-8")
+        loaded = bundle_module.load(STORE_ID, registry_root=self.fixture.registry_root)
+        self.assertEqual(list(bundle_module.check(loaded, registry_root=self.fixture.registry_root)), [])
+        self.receipt = self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        self.receipt_bytes = self.receipt.read_bytes()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def selection(self, ids: Sequence[str]) -> Path:
+        path = Path(self._tmp.name) / "joiners.tsv"
+        path.write_text("\n".join(["accession\ttrait", *(f"{a}\tTrait {a}" for a in ids)]) + "\n", encoding="utf-8")
+        return path
+
+    def increment(self, ids: Sequence[str], *extra: str, **kwargs) -> subprocess.CompletedProcess:
+        return _run_cli(
+            self.fixture, "--increment", "--reason", "fixture increment",
+            "--selection", str(self.selection(ids)), *extra, **kwargs,
+        )
+
+    def test_it_resolves_renders_and_emits_exactly_the_roster(self) -> None:
+        analyses_before = (self.bundle_dir / "analyses.tsv").read_bytes()
+
+        result = self.increment(self.ADDED, "--require-added", "GCST90000004")
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        increment_dir = self.bundle_dir / "increments" / "0001"
+        rows = {row["analysis_id"]: row for row in _read_tsv(increment_dir / "analyses.tsv")}
+        self.assertEqual(set(rows), set(self.ADDED))
+        self.assertEqual(rows["GCST90000004"]["exclude_from_build"], "")
+        self.assertEqual(rows["GCST90000005"]["exclude_from_build"], "true")
+        self.assertIn("ancestry_not_eur", rows["GCST90000005"]["inclusion_reason"])
+        self.assertEqual((self.bundle_dir / "analyses.tsv").read_bytes(), analyses_before)
+        self.assertEqual(self.receipt.read_bytes(), self.receipt_bytes, "the bundle's own receipt was overwritten")
+
+        declaration = yaml.safe_load((increment_dir / "increment.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(declaration["status"], "candidate")
+        self.assertEqual(declaration["require_added"], ["GCST90000004"])
+        self.assertEqual(declaration["selection"]["n"], 2)
+        base_resolver = json.loads(self.receipt_bytes)["resolver"]
+        self.assertEqual(declaration["resolver"]["settings_digest"], base_resolver["settings_digest"])
+        self.assertEqual(declaration["resolver"]["opengwasdb_version"], base_resolver["opengwasdb_version"])
+        loaded = bundle_module.load(STORE_ID, registry_root=self.fixture.registry_root)
+        self.assertEqual(list(bundle_module.check(loaded, registry_root=self.fixture.registry_root)), [])
+
+    def test_it_refuses_a_roster_it_cannot_reconcile_and_writes_nothing(self) -> None:
+        for ids, fragment in (
+            ((*self.ADDED, "GCST99999999"), "not in the frozen Source Inventory"),
+            ((*self.ADDED, NON_READY[0]), "not ready in it"),
+            ((*self.ADDED, "GCST90000001"), "already in the bundle or an increment"),
+        ):
+            with self.subTest(fragment=fragment):
+                result = self.increment(ids)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn(fragment, result.stderr)
+                self.assertFalse((self.bundle_dir / "increments").exists())
+
+    def test_it_runs_only_under_the_bundles_own_release_config(self) -> None:
+        other = Path(self._tmp.name) / "other-config.yaml"
+        shutil.copyfile(self.fixture.config_path, other)
+        result = self.increment(self.ADDED, config_path=other)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("is not the bundle's own release config", result.stderr)
+        self.assertFalse((self.bundle_dir / "increments").exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

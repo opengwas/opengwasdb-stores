@@ -277,3 +277,21 @@ a fresh or forced build's `complete-hybrid` recounts itself. A completed
 Hybrid that needs only a recount, with nothing to add, is not taken by this
 route; that is a follow-up if one turns up. The step's record, elapsed time
 and the register's `inputs` are like any step this run ran.
+
+## Amendment, 28 Nov 2026: a spliced release (ADR 0045)
+
+A release published by the increment route (ADR 0045) is a splice of its
+parent and stays at 0.3.0, so this route still adds post steps to it. An
+addition here keeps the `release_id` and changes no membership, which is
+compatible with splicing: a splice checks its parent by content fingerprint,
+not by `release_id` alone.
+
+- **Settling.** The phase's post-step records were written for the parent. The
+  splice rebuilt each of those structures, and its `increments` entry records
+  that it did. They remain current evidence, and the settled edges above apply
+  unchanged. The increment route settles one more edge, the manifest's into
+  the build (ADR 0045 §6).
+- **The rewrite-warning gate.** After a splice, a carried `rewrite` block is
+  history. Besides the rewrite's carried warnings, the gate accepts a warning
+  only when a published increment's `accepted_warnings` records the owner's
+  acceptance of its exact message.
