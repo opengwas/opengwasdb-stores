@@ -35,10 +35,13 @@ import zarr
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / "tools" / "ld-panel"
 
+from opengwasdb.completion.options import CompletionOptions  # noqa: E402
+from opengwasdb.completion.ld_panel import PanelSource  # noqa: E402
 from opengwasdb.layouts.dense.complete import complete_dense_store  # noqa: E402
 
 CHROM = "22"
-FIRST_POSITION = 1000
+# On sequence: chr22's first 10,510,000 bases are an assembly gap, which builds drop (opengwasdb#410).
+FIRST_POSITION = 20_000_000
 N_VARIANTS = 600
 #: The block name the comparison is asked for. It is the half-open span
 #: `store_rows` fetches -- `tabix.fetch(chrom, start - 1, end)` -- so a block
@@ -196,8 +199,8 @@ def build_store(tmp: Path) -> tuple[Path, Path]:
         capture_output=True, text=True,
     )
     check(built.returncode == 0, f"build-dense failed:\n{built.stdout}\n{built.stderr}")
-    complete_dense_store(observed_store, completed_store, panel_root, ancestry="EUR",
-                         release_id="OGS-99998")
+    complete_dense_store(observed_store, completed_store, PanelSource(panel_root, ancestry="EUR"),
+                         CompletionOptions(release_id="OGS-99998"))
     return observed_store, completed_store
 
 

@@ -947,6 +947,19 @@ FIXTURE_TARBALL = Path(__file__).resolve().parent / "fixtures" / "dense-0.2.0.ta
 GNU_TIME = Path("/usr/bin/time")
 
 
+# What `effect_consistency.unchecked` says of a release built before opengwasdb#510 (the fixture's
+# analyses.tsv carries none of the five columns, and a conversion keeps them absent). The engine
+# now warns of it on every such release; the route accepts it only as a warning the replaced
+# Validation Record carries unchanged, so the record is given it, as a Store validated by that
+# engine would be.
+LEGACY_UNCHECKED_WARNING = (
+    "analyses.tsv has none of the effect-consistency columns, so none of its 2 Analyses records the "
+    "check: the release was built before builds checked each stored z against its source's own "
+    "p-value (ADR 0069, #510), so nothing in it says their effects are on the scale they claim. "
+    "associations.z_plausible audits what the Store holds"
+)
+
+
 @unittest.skipUnless(GNU_TIME.is_file(), "needs GNU time at /usr/bin/time, as the operator's evidence does")
 class TestRealEngine(unittest.TestCase):
     """The route end to end with the pinned engine: a real 0.2.0 Dense release, converted by the
@@ -975,7 +988,7 @@ class TestRealEngine(unittest.TestCase):
                 "status": "passed", "validator": {"name": "opengwasdb validate", "version": "x"},
                 # The fixture tarball is an Observed-Only Store, as `info` reports it.
                 "observed": {**PREVIOUS_OBSERVED, "completion_state": "observed_only"},
-                "checks": {"store": "passed"}, "warnings": [], "errors": [],
+                "checks": {"store": "passed"}, "warnings": [LEGACY_UNCHECKED_WARNING], "errors": [],
             }, sort_keys=False))
             store_dir = paths.store_dir(STORE_ID, root=root)
             store_dir.mkdir(parents=True)
@@ -1012,7 +1025,11 @@ class TestRealEngine(unittest.TestCase):
             self.assertEqual(record["rewrite"]["deviations"], ["variant_table.source_alid"])
             self.assertEqual(record["rewrite"]["source_format_version"], "0.2.0")
             self.assertEqual(record["observed"]["format_version"], "0.3.0")
-            self.assertEqual(len(record["warnings"]), 1)
+            # The deviation, and `effect_consistency.unchecked` (opengwasdb#510): a conversion keeps a
+            # pre-#510 release's effect-consistency columns absent, so the engine warns of every
+            # one, and the route accepts that only as a warning the replaced record carried.
+            self.assertEqual(len(record["warnings"]), 2)
+            self.assertEqual(record["rewrite"]["carried_warnings"], [LEGACY_UNCHECKED_WARNING])
             # Read directly: each `opengwasdb info` costs about 2 s, and the route asked it already.
             manifest = json.loads((store / "manifest.json").read_text())
             self.assertEqual(manifest["release_id"], record["rewrite"]["release_id"])
