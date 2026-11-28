@@ -59,7 +59,7 @@ threadpoolctl = ">=3.0"
 # The `ld-build` extra is pgenlib, which `opengwasdb clump` needs to read the
 # HGDP+1kGP Genotype Stores the Clumps step maps ancestries to (stores#522;
 # without it the step refuses each one as "reading a pgen needs pgenlib").
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "main", extras = ["ld-build"] }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "orch/367-silent-errors", extras = ["ld-build"] }
 # The yardstick reads LD Stores and Genotype Stores through ogquery (#504), never the
 # engine (docs/architecture/engine-imports-baseline.yaml), so it declares ogquery itself,
 # with the constraint and the `genotype` extra opengwasdb's `ld-build` extra carries.

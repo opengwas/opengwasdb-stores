@@ -471,6 +471,12 @@ def _judge_rewrite_warnings(a: Assessment, validate_record: Mapping[str, Any]) -
         convert_legacy=bool(rewrite.get("convert_legacy")),
         replaced_warnings=carried,
     )
+    # The legacy warnings its publication accepted (`rewrite.legacy_warnings`), and no others.
+    recorded = rewrite.get("legacy_warnings")
+    _legacy, unrecorded = publish_rewrite.accept_legacy(
+        unrecorded,
+        [e.get("rule") for e in recorded if isinstance(e, Mapping)] if isinstance(recorded, list) else [],
+    )
     if unrecorded:
         shown = "\n  ".join(f"{f['rule']}: {f['message']}" for f in unrecorded[:10])
         raise PostAdditionRefused(

@@ -758,7 +758,7 @@ ENTRY = {
     "status": "measured",
     "rsid": "rs1",
     "alid": "1:20000:C:T",
-    "position": {"chromosome": "1", "position": 10000},
+    "position": {"chromosome": "1", "position": 15000},
     "analysis_id": "fx1",
     "region": {"chromosome": "1", "start": 1, "end": 100000},
     "measures": [

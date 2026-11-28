@@ -204,7 +204,9 @@ def create_fixture_vcf(path: Path) -> Path:
 # covered by the LD panel, over a smooth z profile. Kept at module level so the
 # tests and later tickets (#304-#309) can state their expected values as these
 # literals rather than reading them back out of a built Store.
-SIGNAL_POSITIONS: list[int] = [100_000 * (i + 1) for i in range(12)]
+# From 1,100,000: on chr1 sequence. The old 100,000 * (i + 1) put position 300,000 in an assembly
+# gap (297,969-347,968), which every build now drops and `validate` refuses (opengwasdb#410).
+SIGNAL_POSITIONS: list[int] = [1_000_000 + 100_000 * (i + 1) for i in range(12)]
 SIGNAL_HELD_OUT_INDEX: int = 6
 SIGNAL_SE: float = 0.2
 SIGNAL_Z: list[float] = [math.sin(3 * i / 11) * 5 + i * 0.1 for i in range(12)]

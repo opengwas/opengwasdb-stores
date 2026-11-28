@@ -575,6 +575,54 @@ class TestRefusals(PublishRewriteCase):
         self.assertEqual(record["rewrite"]["deviations"], ["variant_table.indel_order"])
         self.assertEqual(record["rewrite"]["carried_warnings"], [UNRECORDED_WARNING["message"]])
 
+    def test_the_legacy_list_is_pinned(self) -> None:
+        """The list cannot grow silently: a rule joins it by an edit here, and a ruling."""
+        self.assertEqual(
+            [(e.rule, e.ticket) for e in publish_rewrite.LEGACY_WARNINGS],
+            [
+                ("effect_consistency.unchecked", "opengwasdb#510"),
+                ("completion.ld_panel_unrecorded", "opengwasdb#327"),
+                ("hybrid.overflow_associated", "opengwasdb#257"),
+            ],
+        )
+        self.assertEqual(set(publish_rewrite.LEGACY_RULES), {e.rule for e in publish_rewrite.LEGACY_WARNINGS})
+
+    def test_a_pre_510_rewrite_carrying_only_the_legacy_warnings_publishes_and_names_them(self) -> None:
+        legacy = [
+            finding("effect_consistency.unchecked", "warning", "analyses.tsv has none of the effect-consistency columns"),
+            finding("completion.ld_panel_unrecorded", "warning", "the completion records no LD panel fields"),
+            finding("hybrid.overflow_associated", "warning", "3 shared rows off the Dense Component hold an association"),
+        ]
+        # The replaced record carries none of them, as one validated by the engine before each rule.
+        self.fx.stage(*legacy, flags=())
+        record = self.fx.publish()
+        assert record is not None
+        accepted = record["rewrite"]["legacy_warnings"]
+        self.assertEqual([e["rule"] for e in accepted], [e.rule for e in publish_rewrite.LEGACY_WARNINGS])
+        self.assertEqual({e["status"] for e in accepted}, {"legacy, accepted"})
+        self.assertEqual([e["ticket"] for e in accepted], ["opengwasdb#510", "opengwasdb#327", "opengwasdb#257"])
+        self.assertTrue(all(e["why"] and e["decided_by"] for e in accepted))
+        self.assertEqual(record["rewrite"]["carried_warnings"], [])
+        self.assertEqual(len(record["warnings"]), 3)
+
+    def test_a_rewrite_with_any_other_new_warning_still_refuses(self) -> None:
+        legacy = finding("effect_consistency.unchecked", "warning", "none of the columns")
+        self.fx.stage(legacy, UNRECORDED_WARNING, flags=())
+        self.assertRefusedUnchanged("eaf_orientation.unverified", "not a deviation")
+
+    def test_a_look_alike_rule_is_not_on_the_legacy_list(self) -> None:
+        self.fx.stage(finding("effect_consistency.evidence", "warning", "some columns"), flags=())
+        self.assertRefusedUnchanged("effect_consistency.evidence", "some columns")
+
+    def test_a_republication_accepts_only_the_legacy_warnings_its_publication_recorded(self) -> None:
+        w = finding("hybrid.overflow_associated", "warning", "3 rows")
+        legacy, refused = publish_rewrite.accept_legacy([w], [])
+        self.assertEqual((legacy, refused), ([], [w]))
+        legacy, refused = publish_rewrite.accept_legacy([w], ["hybrid.overflow_associated", "not.listed"])
+        self.assertEqual(([e["rule"] for e in legacy], refused), (["hybrid.overflow_associated"], []))
+        other = finding("not.listed", "warning", "x")
+        self.assertEqual(publish_rewrite.accept_legacy([other], ["not.listed"]), ([], [other]))
+
     def test_a_plain_rewrite_accepts_no_deviation(self) -> None:
         """#499's 0.2.3 rewrite records none, so every warning refuses it."""
         self.fx.stage(INDEL_WARNING, flags=())
@@ -1012,7 +1060,15 @@ class TestRealEngine(unittest.TestCase):
             self.assertEqual(record["rewrite"]["deviations"], ["variant_table.source_alid"])
             self.assertEqual(record["rewrite"]["source_format_version"], "0.2.0")
             self.assertEqual(record["observed"]["format_version"], "0.3.0")
-            self.assertEqual(len(record["warnings"]), 1)
+            # The deviation, and `effect_consistency.unchecked` (opengwasdb#510): a conversion keeps a
+            # pre-#510 release's effect-consistency columns absent, so the engine warns of every
+            # one, and the route accepts it as a named legacy warning (`LEGACY_WARNINGS`).
+            self.assertEqual(len(record["warnings"]), 2)
+            self.assertEqual(record["rewrite"]["carried_warnings"], [])
+            self.assertEqual(
+                [(e["rule"], e["status"]) for e in record["rewrite"]["legacy_warnings"]],
+                [("effect_consistency.unchecked", "legacy, accepted")],
+            )
             # Read directly: each `opengwasdb info` costs about 2 s, and the route asked it already.
             manifest = json.loads((store / "manifest.json").read_text())
             self.assertEqual(manifest["release_id"], record["rewrite"]["release_id"])

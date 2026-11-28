@@ -199,6 +199,12 @@ notes: |-
   1,367 pairs, the Clumps read, and z, se and eaf of three Analyses equal the archived Store's. The
   previous Store, records and Validation Record are archived at replaced/20261126T132714Z.
 
+
+  Completion panel identity (opengwasdb#327, stores #563). From opengwasdb#515 a completion records
+  which LD panel it read, in provenance.completion: ld_panel_id, ld_panel_id_source, ld_panel_path,
+  ld_panel_digest and ld_panel_ancestry_dir. A later completion of this release records the panel's
+  digest. The completions already run here record only ld_panel_id, as the engine then wrote it, and
+  validate warns of that (completion.ld_panel_unrecorded); this note is not a record of any of them.
 accepted_at: '2026-10-14T08:39:12Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

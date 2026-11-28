@@ -52,3 +52,8 @@ notes: |
   September 2026, before this bundle was registered under its id (the trace is on
   opengwas/opengwasdb-stores#510). The completion it records ran against the
   unrepaired HGDP+1kGP EUR panel (#348). It will not be rebuilt under this id.
+
+  GCST002047 must not be admitted by a rebuild (opengwasdb#367, stores #563). It derives from OGS-00005, where
+  its stored z is on another scale: associations.z_plausible fails it (owner's 27 Nov 2026 ruling;
+  docs/runtime.md). The rebuild sets exclude_from_build=true on its row, with an inclusion_reason, before
+  building; this withdrawn Store and its row are unchanged.

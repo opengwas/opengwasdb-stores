@@ -2204,6 +2204,20 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
         for step in steps:
             validate_step_argv_against_cli(self, step)
 
+    def test_the_complete_step_passes_the_panel_id_and_the_check_does_not(self) -> None:
+        """opengwasdb#327: `--ld-panel-id` rides on the `complete-*` step; `check-observed-view` has no such flag."""
+        block = {
+            "command": "complete-ragged",
+            "options": {**self.COMPLETE_BLOCK["options"], "ld-panel-id": "ukb-eur-ld-panel"},
+        }
+        steps = plan(self.completed(block))
+        record_check()
+        complete = next(s for s in steps if s.name == "complete")
+        self.assertEqual(complete.argv[complete.argv.index("--ld-panel-id") + 1], "ukb-eur-ld-panel")
+        self.assertNotIn("--ld-panel-id", steps[-1].argv)
+        for step in steps:
+            validate_step_argv_against_cli(self, step)
+
     def test_the_build_phase_is_the_observed_only_plan(self) -> None:
         """What OGS-00006 planned before it declared completion is its build phase, step for step (ADR 0037, #305)."""
         steps = plan(self.completed())

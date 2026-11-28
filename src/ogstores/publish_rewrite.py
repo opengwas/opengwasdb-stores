@@ -104,6 +104,77 @@ def carries_conversion_note(message: str) -> bool:
     version, mid, release = rest.partition(" (release ")
     return bool(head and marker and version and mid and release.endswith(_NOTE_TAIL) and len(release) > len(_NOTE_TAIL))
 
+@dataclass(frozen=True)
+class LegacyWarning:
+    """A rule the engine added after releases were built, whose warning on such a release is accepted."""
+
+    rule: str
+    ticket: str
+    why: str
+    #: How the route knows the release was built before the rule (the owner's 28 Nov 2026 ruling, https://github.com/opengwas/opengwasdb-stores/issues/563#issuecomment-7243082291).
+    decided_by: str
+
+
+#: The only warnings a rewrite of an older release accepts without the replaced record carrying them,
+#: and only on a release built before the rule existed. One named list: a rule joins it by an edit
+#: here and a ruling, never silently (`tests/publish-rewrite` pins its contents). The registry reads
+#: a Store only through `info` and `validate` (ADR 0023), so each rule's own engine test, which the
+#: validator ran on the staged release, is the evidence; a rewrite keeps what it cannot change.
+LEGACY_WARNINGS: tuple[LegacyWarning, ...] = (
+    LegacyWarning(
+        "effect_consistency.unchecked", "opengwasdb#510",
+        "the release was built before builds checked each stored z against its source's p-value",
+        "the engine's own test, run by `validate` on the staged release: none of the five "
+        "effect_consistency* columns is in analyses.tsv, and a rewrite keeps them absent. The "
+        "replaced record's engine version is not used: #510 moved no format_version and no released "
+        "engine version marks it",
+    ),
+    LegacyWarning(
+        "completion.ld_panel_unrecorded", "opengwasdb#327",
+        "the release's completion was written before it recorded the LD panel it read",
+        "the engine's own test, run by `validate` on the staged release: none of the four #327 panel "
+        "fields is in provenance.completion, and a rewrite keeps them absent. The replaced record's "
+        "engine version is not used: #327 moved no format_version and no released engine version marks it",
+    ),
+    LegacyWarning(
+        "hybrid.overflow_associated", "opengwasdb#257",
+        "the release was built before a Hybrid build dropped off-panel variants holding no association",
+        "the route's source is a release of the 0.2 series (`SOURCE_FORMAT_SERIES`, refused otherwise), "
+        "written by an engine that wrote 0.2, which predates #257 (unreleased, on the 0.3 line). The "
+        "engine itself says an older release cannot be told apart, and the replaced record's engine "
+        "version (`build_environment.opengwasdb_version`) names no #257 boundary to compare with, so "
+        "it is not used; this is a judgement the list records, not a test on the release",
+    ),
+)
+LEGACY_RULES: dict[str, LegacyWarning] = {entry.rule: entry for entry in LEGACY_WARNINGS}
+LEGACY_STATUS = "legacy, accepted"
+
+
+def accept_legacy(
+    unrecorded: list[Mapping[str, str]], accepted: Any = None
+) -> tuple[list[dict[str, str]], list[Mapping[str, str]]]:
+    """The listed legacy warnings among `unrecorded`, as record entries, and the warnings still refused.
+
+    `accepted` limits the rules to those a publication already recorded (a republication
+    of a rewritten Store); None accepts every listed rule (the publication itself).
+    """
+    allowed = LEGACY_RULES.keys() if accepted is None else (
+        {r for r in accepted if isinstance(r, str)} & LEGACY_RULES.keys()
+    )
+    legacy: list[dict[str, str]] = []
+    refused: list[Mapping[str, str]] = []
+    for item in unrecorded:
+        entry = LEGACY_RULES.get(item["rule"])
+        if entry is not None and item["rule"] in allowed:
+            legacy.append({
+                "rule": entry.rule, "ticket": entry.ticket, "status": LEGACY_STATUS,
+                "why": entry.why, "decided_by": entry.decided_by, "message": item["message"],
+            })
+        else:
+            refused.append(item)
+    return legacy, refused
+
+
 #: A release `rewrite-release` reads is of the 0.2 series (0.2.3, or 0.2.0-0.2.2 converted).
 SOURCE_FORMAT_SERIES: str = "0.2."
 
@@ -476,8 +547,8 @@ def _refuse_failed_validation(record: Mapping[str, Any] | None) -> None:
 
 def _judge_validation(
     record: Mapping[str, Any] | None, *, convert_legacy: bool, replaced_warnings: list[str]
-) -> tuple[str, list[str], list[str], list[str]]:
-    """This run's verdict and warnings, the deviations and carried warnings they are; refuses anything else."""
+) -> tuple[str, list[str], list[str], list[str], list[dict[str, str]]]:
+    """This run's verdict and warnings, the deviations, carried and legacy warnings they are; refuses anything else."""
     _refuse_failed_validation(record)
     status, warnings, _errors = register.validate_verdict(dict(record or {}))
     findings = json.loads(str((record or {}).get("stdout"))).get(register.VALIDATE_FINDINGS_KEY)
@@ -489,8 +560,10 @@ def _judge_validation(
     deviations, carried, unrecorded = judge_findings(
         findings or [], convert_legacy=convert_legacy, replaced_warnings=replaced_warnings
     )
+    legacy, unrecorded = accept_legacy(unrecorded)
     if unrecorded:
         accepts = ", ".join(sorted(DEVIATION_RULES)) if convert_legacy else "none"
+        accepts += "; legacy: " + ", ".join(LEGACY_RULES)
         what = "a --convert-legacy conversion's" if convert_legacy else "a 0.2.3 rewrite's"
         raise RewritePublicationRefused(
             f"the staged release has {len(unrecorded)} warning(s) that are not a deviation "
@@ -498,7 +571,7 @@ def _judge_validation(
             "carry unchanged:"
             + _listed([f"{f['rule']}: {f['message']}" for f in unrecorded])
         )
-    return status, warnings, deviations, carried
+    return status, warnings, deviations, carried, legacy
 
 
 def _observed(
@@ -604,6 +677,7 @@ def _assemble(
     warnings: list[str],
     deviations: list[str],
     carried: list[str],
+    legacy: list[dict[str, str]],
     snapshot: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The new Validation Record and `publication.json`, through `register`'s builders."""
@@ -623,6 +697,7 @@ def _assemble(
         "source_format_version": p.published["format_version"],
         "deviations": list(deviations),
         "carried_warnings": list(carried),
+        "legacy_warnings": list(legacy),
     }
     inputs = [str(path) for path in p.replaced_register["inputs"]]
     if str(rewrite_p) not in inputs:
@@ -749,12 +824,14 @@ def publish_rewrite(
         run.execute_step(p.validate_step, store_id, artifact_root=root, check=False)
         validate_record = run.load_record(store_id, p.validate_step.name, root=root)
         replaced = p.bundle.validation.get("warnings") if isinstance(p.bundle.validation, Mapping) else None
-        status, warnings, deviations, carried = _judge_validation(
+        status, warnings, deviations, carried, legacy = _judge_validation(
             validate_record,
             convert_legacy=p.evidence.convert_legacy,
             replaced_warnings=replaced,
         )
-        validation, marker = _assemble(p, validate_record or {}, status, warnings, deviations, carried, snapshot)
+        validation, marker = _assemble(
+            p, validate_record or {}, status, warnings, deviations, carried, legacy, snapshot
+        )
         published["validation"] = validation
         return marker
 

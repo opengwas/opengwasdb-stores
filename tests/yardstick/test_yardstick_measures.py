@@ -37,7 +37,7 @@ def full_entry(**extra: object) -> dict:
     """A Dense entry that lists every measure, as the committed Dense entries do."""
     return {
         "store_id": "OGS-00099", "layout": "dense", "coverage": "gwas", "status": "measured",
-        "rsid": "rs1", "alid": "1:20000:C:T", "position": {"chromosome": "1", "position": 10000},
+        "rsid": "rs1", "alid": "1:20000:C:T", "position": {"chromosome": "1", "position": 15000},
         "analysis_id": "fx1", "region": {"chromosome": "1", "start": 1, "end": 100000},
         "region_100kb": {"chromosome": "1", "start": 1, "end": 100000},
         "lookup": lookup_input(), "top_hits": {"analysis_id": "fx1", "threshold": 5e-8, "path": "scan"},

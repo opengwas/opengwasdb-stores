@@ -197,6 +197,10 @@ ANALYSES_COLUMNS: tuple[str, ...] = (
     "imputation_score_kind",
     "imputation_score_provenance",
     "maf_threshold",
+    # The declared test its source's p-value comes from (opengwasdb ADR 0085).
+    # A build reads it from the build manifest this table becomes, so
+    # `joint_2df` skips the effect-consistency check (#510) and `mr_mega` refuses.
+    "p_value_test",
     "inclusion_reason",
     "exclude_from_build",
 )
@@ -329,6 +333,10 @@ EXCLUSION_COLUMNS: tuple[str, ...] = (
 #: other reason is declared by a Quality Check (``quality_checks``).
 POLICY_EXCLUSION_CATEGORIES: Mapping[str, str] = {
     "resolution_failed": "resolution",
+    # The resolver measured the stored z against the source's own p-value and
+    # refused it (opengwasdb#510, ADR 0069): a fact about the source's effect
+    # column, kept apart from a parse failure so a reviewer can exclude by it.
+    "effect_consistency_refused": "resolution",
     "missing_sample_size": "metadata",
     "missing_case_control_counts": "metadata",
     "not_maf_filtered": "store_composition",
@@ -2720,6 +2728,8 @@ def _decide(
         return make(included=False, reason="resolution_failed", detail="no resolver record")
     if record.get("status") != "success":
         error = str(record.get("error") or "resolver returned controlled_failure")
+        if _effect_consistency_refused(record):
+            return make(included=False, reason="effect_consistency_refused", detail=error)
         return make(included=False, reason="resolution_failed", detail=error)
 
     # Slot RESOLVED: checks on the record before its Assigned Ancestry is read
@@ -3312,6 +3322,7 @@ def _analyses_row(
         "imputation_score_kind": outcome.info_score_kind,
         "imputation_score_provenance": outcome.info_score_provenance,
         "maf_threshold": outcome.maf_threshold,
+        "p_value_test": _p_value_test(row, config, resolved),
         "inclusion_reason": inclusion_reason,
         "exclude_from_build": exclude,
         "trait_chr": resolved.target_chromosome,
@@ -3322,6 +3333,12 @@ def _analyses_row(
         "target_resolution_method": resolved.target_resolution_method,
         "n_target_rows": resolved.target_rows,
     }
+
+
+def _effect_consistency_refused(record: Mapping[str, Any]) -> bool:
+    """Whether the record's own measurement says the resolver refused the effect (opengwasdb#510)."""
+    measured = (record.get("diagnostics") or {}).get("effect_consistency")
+    return isinstance(measured, Mapping) and measured.get("refused") is True
 
 
 def _or_default(value: str, config: CandidateConfiguration, key: str) -> str:

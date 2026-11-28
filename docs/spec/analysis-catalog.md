@@ -137,6 +137,14 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   `analyses.tsv` carries `n_missing_se_out_of_range` and which holds no SE above
   65,504, hence no `+inf` SE; an earlier stamp says neither. The catalog does not
   carry the count: it is a column of the Store's own `analyses.tsv`.
+  The same holds for the five `effect_consistency*` columns opengwasdb#510 added
+  to a Store's `analyses.tsv` (`effect_consistency`, `effect_consistency_reason`,
+  `effect_consistency_median_abs_delta`, `effect_consistency_median_delta`,
+  `effect_consistency_n`): they are all present on a Store built since #510 and all
+  absent on one built before, `format_version` does not move, and the catalog
+  carries none of them. A Store that recorded `refused` fails `validate`
+  (`effect_consistency.evidence`) and is never registered, so no catalog row
+  says it. `p_value_test` is a bundle column, not a Store one, and is not served.
   `opengwasdb_version` names one engine even when a later step of the phase ran
   under a newer one of the same Store format; the Validation Record's
   `build_environment.engines` lists them all, and the catalog does not carry
